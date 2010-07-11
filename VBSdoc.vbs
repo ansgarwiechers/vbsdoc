@@ -1,8 +1,9 @@
-'! @file vbsdoc.vbs
+'! Script for automatic generation of API documentation from special
+'! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2010-06-27
-'! @version 0.1
+'! @date    2010-07-11
+'! @version 1.0
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -18,11 +19,9 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-'! @todo handle file-level doc-comments
+'! @todo fix <hr/> alignment
 '! @todo add tag @mainpage for documentation on the global index page?
-'! @todo handle End-of-Line doc-comments
-'! @todo evaluate commandline options
-'! @todo printUsage()
+'! @todo add HTMLHelp generation?
 '! @todo add grouping option for doc-comments? (like doxygen's @{ ... @})
 
 Import "LoggerClass.vbs"
@@ -35,18 +34,19 @@ Private Const vbAll = -1
 Private Const Extension = "vbs"
 
 Private Const StylesheetName = "vbsdoc.css"
-Private Const TextFont       = "Times New Roman, Times, serif"
-Private Const CodeFont       = "Courier New, Courier, Lucida Console, monospace"
-Private Const BaseFontSize   = "16px"
+Private Const TextFont       = "Verdana, Arial, helvetica, sans-serif"
+Private Const CodeFont       = "Lucida Console, Courier New, Courier, monospace"
+Private Const BaseFontSize   = "14px"
 
 ' Initialize global objects.
 Private fso : Set fso = CreateObject("Scripting.FileSystemObject")
 Private sh  : Set sh = CreateObject("WScript.Shell")
+Private log : Set log = New Logger
 
-'! Match comments that aren't doc-comments.
-Private reComments : Set reComments = CompileRegExp("^([^']*)\s*'([^!].*|$)", True, True)
 '! Match line-continuations.
 Private reLineCont : Set reLineCont = CompileRegExp("[ \t]+_\n[ \t]*", True, True)
+'! Match End-of-Line doc-comments.
+Private reEOLComment : Set reEOLComment = CompileRegExp("(^|\n)([ \t]*.+)('![ \t]*.*(\n[ \t]*'!.*)*)", True, True)
 '! Match @todo-tagged doc-comments.
 Private reTodo     : Set reTodo = CompileRegExp("'![ \t]*@todo[ \t]*(.*\n([ \t]*'!([ \t]*[^@\s].*|\s*)\n)*)", True, True)
 '! Match class implementations and prepended doc-comments.
@@ -66,14 +66,14 @@ Private reConst    : Set reConst = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*(
 '! definition as well as multiple declarations of variables on one line, e.g.:
 '!   Dim foo : foo = 42
 '!   Dim foo, bar, baz
-Private reVar      : Set reVar = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*(Public|Private|Dim)[ \t]+((\w+[ \t]*(\(\))?)[ \t]*(:[ \t]*(Set[ \t]+)?\6[ \t]*=.*|(,[ \t]*\w+[ \t]*(\(\))?)*))", True, True)
+Private reVar      : Set reVar = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*(Public|Private|Dim|ReDim)[ \t]+(((\w+)([ \t]*\(\))?)[ \t]*(:[ \t]*(Set[ \t]+)?\7[ \t]*=.*|(,[ \t]*\w+[ \t]*(\(\))?)*))", True, True)
 
+'! Dictionary listing the tags that VBSdoc accepts.
 Private isValidTag : Set isValidTag = CreateObject("Scripting.Dictionary")
 	isValidTag.Add "@author", True
 	isValidTag.Add "@brief", True
 	isValidTag.Add "@date", True
 	isValidTag.Add "@details", True
-	isValidTag.Add "@file", True
 	isValidTag.Add "@param", True
 	isValidTag.Add "@raise", True
 	isValidTag.Add "@return", True
@@ -81,32 +81,46 @@ Private isValidTag : Set isValidTag = CreateObject("Scripting.Dictionary")
 	isValidTag.Add "@todo", True
 	isValidTag.Add "@version", True
 
-Dim log, beQuiet
-Dim projectName, author, srcRoot, docRoot, indexFile
-Dim header, footer
+Private beQuiet, projectName, docRoot, indexFile
 
 Main WScript.Arguments
 
 
 Public Sub Main(args)
-	Set log = New Logger
-	log.Debug = True
+	Dim includePrivate, srcRoot
 
+	' initialize global variables with default values
 	beQuiet = False
+	includePrivate = False
+	projectName = ""
 
-	'! @todo initialize global variables with appropriate values
-	projectName = "test"
-	author = sh.ExpandEnvironmentStrings("%AUTHOR%")
-	If author = "%AUTHOR%" Then author = sh.ExpandEnvironmentStrings("%USERNAME%")
-	srcRoot = "src"
-	docRoot = "doc"
+	' evaluate commandline arguments
+	With args
+		If args.Named.Exists("?") Then PrintUsage
+		If args.Named.Exists("a") Then includePrivate = True
+		If args.Named.Exists("q") Then beQuiet = True
+		If args.Named.Exists("p") Then projectName = args.Named("p")
 
+		If args.Named.Exists("s") Then
+			srcRoot = args.Named("s")
+		Else
+			PrintUsage
+		End If
+
+		If args.Named.Exists("d") Then
+			docRoot = args.Named("d")
+		Else
+			PrintUsage
+		End If
+	End With
+
+	' start documentation generation
 	CreateDirectory docRoot
 	Set indexFile = fso.OpenTextFile(fso.BuildPath(docRoot, "index.html"), ForWriting, True)
 	WriteHeader indexFile, "Main Page", StylesheetName
-	indexFile.WriteLine "<h1>" & projectName & "</h1>"
+	If projectName <> "" Then indexFile.WriteLine "<h1>" & projectName & "</h1>"
 
-	GenDoc fso.GetFolder(srcRoot), docRoot, False
+	GenDoc fso.GetFolder(srcRoot), docRoot, includePrivate
 
 	WriteFooter indexFile
 	indexFile.Close
@@ -158,7 +172,7 @@ Public Function GenFileDoc(filename, docDir, includePrivate)
 	GenFileDoc = Null
 	If fso.GetFile(filename).Size = 0 Or Not fso.FileExists(filename) Then Exit Function ' nothing to do
 
-	log.LogInfo "Processing " & filename & " ..."
+	log.LogInfo "Generating documentation for " & filename & " ..."
 
 	outDir = fso.BuildPath(docDir, fso.GetBaseName(filename))
 	CreateDirectory(outDir)
@@ -168,18 +182,14 @@ Public Function GenFileDoc(filename, docDir, includePrivate)
 	inFile.Close
 
 	' Convert all linebreaks to LF, otherwise regular expressions might produce
-	' strings with a trailing CR. :(
+	' strings with a trailing CR.
 	content = Replace(Replace(content, vbNewLine, vbLf), vbCr, vbLf)
 
 	' Join continued lines.
 	content = reLineCont.Replace(content, " ")
 
-	' Remove regular comments before processing the code.
-	content = Split(content, vbLf)
-	For n = LBound(content) To UBound(content)
-		content(n) = reComments.Replace(content(n), "$1")
-	Next
-	content = Join(content, vbLf)
+	' Move End-of-Line doc-comments to front.
+	content = reEOLComment.Replace(content, vbLf & "$3" & vbLf & "$2")
 
 	todoList = GenTodoList(content)
 
@@ -195,6 +205,14 @@ Public Function GenFileDoc(filename, docDir, includePrivate)
 	Set constDoc = GenConstDoc(content, includePrivate)
 	Set varDoc = GenVariableDoc(content, includePrivate)
 
+	' process file-global doc-comments
+	fileDoc = ""
+	Set reDocComment = CompileRegExp("^[ \t]*('!.*)", True, True)
+	For Each line In Split(content, vbLf)
+		If reDocComment.Test(line) Then fileDoc = fileDoc & reDocComment.Replace(line, "$1") & vbLf
+	Next
+	Set tags = ProcessComments(fileDoc)
+
 	CheckRemainingCode content
 
 	docName = fso.BuildPath(outDir, "index.html")
@@ -203,7 +221,10 @@ Public Function GenFileDoc(filename, docDir, includePrivate)
 	WriteHeader outFile, fso.GetFileName(filename), GetStylesheetPath(outDir) & "/" & StylesheetName
 
 	outFile.WriteLine "<h1>" & fso.GetFileName(filename) & "</h1>"
-	'! @todo process/write file-global documentation
+	outFile.Write GenDetailsInfo(tags)
+	outFile.Write GenVersionInfo(tags)
+	outFile.Write GenAuthorInfo(tags)
+	outFile.Write GenReferencesInfo(tags)
 
 	' Write ToDo list.
 	If UBound(todoList) > -1 Then
@@ -244,7 +265,7 @@ Private Function GenTodoList(ByRef code)
 				& Trim(Replace(Replace(line, vbTab, " "), "'!", "")))
 		Next
 	Next
-	code = reTodo.Replace(code, vbLf)
+	code = reTodo.Replace(code, "")
 
 	GenTodoList = list
 End Function
@@ -307,112 +328,6 @@ Private Function GenClassDoc(ByRef code, ByVal dir, ByVal includePrivate)
 	code = reClass.Replace(code, vbLf)
 
 	GenClassDoc = classes
-End Function
-
-'! Parse the given comment and return a dictionary with all present tags and
-'! their values. A line that does not begin with a tag is appended to the value
-'! of the previous tag, or to "@details" if there was no previous tag. Values
-'! of tags that can appear more than once (e.g. "@param", "@see", ...) are
-'! stored in Arrays.
-'!
-'! @param  comments  The comments to parse.
-'! @return Dictionary with tag/value pairs.
-Private Function ProcessComments(ByVal comments)
-	Set tags = CreateObject("Scripting.Dictionary")
-	currentTag = Null
-	authors = Array()
-	params  = Array()
-	errors  = Array()
-	refs    = Array()
-
-	For Each line in Split(comments, vbLf)
-		line = Trim(Replace(line, vbTab, " "))
-
-		Set re = CompileRegExp("'![ \t]*(@\w+)[ \t]*(.*)", True, True)
-		Set myMatches = re.Execute(line)
-		If myMatches.Count > 0 Then
-			' line starts with a tag
-			For Each m in myMatches
-				currentTag = LCase(m.SubMatches(0))
-				If Not isValidTag(currentTag) Then
-					If Not beQuiet Then log.LogWarning "Unknown tag " & currentTag & "."
-				Else
-					Select Case currentTag
-						Case "@author" Append authors, m.SubMatches(1)
-						Case "@param" Append params, m.SubMatches(1)
-						Case "@raise" Append errors, m.SubMatches(1)
-						Case "@see" Append refs, m.SubMatches(1)
-						Case Else
-							If tags.Exists(currentTag) Then
-								' Re-definiton of a tag that's supposed to be unique per
-								' documentation block may be undesired.
-								If Not beQuiet Then log.LogWarning "Duplicate definition of tag " & currentTag _
-									& ": " & m.SubMatches(1)
-								tags(currentTag) = m.SubMatches(1)
-							Else
-								tags.Add currentTag, m.SubMatches(1)
-							End If
-					End Select
-				End If
-			Next
-		Else
-			' line does not begin with a tag
-			' => line must be either empty, first line of detail description, or
-			'    continuation of previous line.
-			line = Trim(Mid(line, 3))   ' strip '! from beginning of line
-			If line = "" Then
-				If currentTag = "@details" Then
-					tags("@details") = tags("@details") & vbNewLine
-				Else
-					currentTag = Null
-				End If
-			Else
-				' Make "@details" currentTag if currentTag is not set. Then append
-				' comment text to currentTag.
-				If IsNull(currentTag) Then currentTag = "@details"
-				Select Case currentTag
-					Case "@author" Append authors(UBound(authors)), line
-					Case "@param" Append params(UBound(params)), line
-					Case "@raise" Append errors(UBound(errors)), line
-					Case "@see" Append refs(UBound(refs)), line
-					Case Else
-						If tags.Exists(currentTag) Then
-							If currentTag = "@details" And Left(line, 2) = "- " Then
-								' line is list element => new line
-								tags(currentTag) = tags(currentTag) & vbNewLine & line
-							Else
-								' line is not a list element (or the continuation of a list
-								' element) => append text
-								tags(currentTag) = tags(currentTag) & " " & line
-							End If
-						Else
-							tags.Add currentTag, line
-						End If
-				End Select
-			End If
-		End If
-	Next
-
-	If UBound(authors) > -1 Then tags.Add "@author", authors
-	If UBound(params) > -1 Then tags.Add "@param", params
-	If UBound(errors) > -1 Then tags.Add "@raise", errors
-	If UBound(refs) > -1 Then tags.Add "@see", refs
-
-	' If no short description was given, set it to the first full sentence (or
-	' the first line, whichever is the shorter match) of the long description.
-	' If no long description was given, set it to the short description.
-	' Do nothing if neither short nor long description were given.
-	If Not tags.Exists("@brief") And tags.Exists("@details") Then
-		Set re = CompileRegExp("([.!?\n]).*", True, True)
-		tags.Add "@brief", Replace(re.Replace(tags("@details"), "$1"), vbLf, "")
-		re.Pattern = "[,;:]$"
-		tags("@brief") = re.Replace(tags("@brief"), ".")
-	ElseIf tags.Exists("@brief") And Not tags.Exists("@details") Then
-		tags.Add "@details", tags("@brief")
-	End If
-	log.LogDebug tags("@brief")
-
-	Set ProcessComments = tags
 End Function
 
 '! Generate Constructor and Destructor documentation.
@@ -567,7 +482,7 @@ Private Function GenVariableDoc(ByRef code, ByVal includePrivate)
 				vars = .Item(4)
 				' If the match contains a declaration/definition combination: remove the
 				' definition part.
-				If Left(.Item(7), 1) = ":" Then vars = Trim(Split(vars, ":")(0))
+				If Left(.Item(8), 1) = ":" Then vars = Trim(Split(vars, ":")(0))
 				CheckIdentifierTags vars, tags
 				vars = Split(Replace(Replace(vars, vbTab, ""), " ", ""), ",")
 				ReDim Preserve summary(UBound(summary)+1)
@@ -613,6 +528,111 @@ Private Function GenConstDoc(ByRef code, ByVal includePrivate)
 	GenConstDoc.Add "details", Join(details, "<hr/>" & vbNewLine)
 End Function
 
+'! Parse the given comment and return a dictionary with all present tags and
+'! their values. A line that does not begin with a tag is appended to the value
+'! of the previous tag, or to "@details" if there was no previous tag. Values
+'! of tags that can appear more than once (e.g. "@param", "@see", ...) are
+'! stored in Arrays.
+'!
+'! @param  comments  The comments to parse.
+'! @return Dictionary with tag/value pairs.
+Private Function ProcessComments(ByVal comments)
+	Set tags = CreateObject("Scripting.Dictionary")
+	currentTag = Null
+	authors = Array()
+	params  = Array()
+	errors  = Array()
+	refs    = Array()
+
+	For Each line in Split(comments, vbLf)
+		line = Trim(Replace(line, vbTab, " "))
+
+		Set re = CompileRegExp("'![ \t]*(@\w+)[ \t]*(.*)", True, True)
+		Set myMatches = re.Execute(line)
+		If myMatches.Count > 0 Then
+			' line starts with a tag
+			For Each m in myMatches
+				currentTag = LCase(m.SubMatches(0))
+				If Not isValidTag(currentTag) Then
+					If Not beQuiet Then log.LogWarning "Unknown tag " & currentTag & "."
+				Else
+					Select Case currentTag
+						Case "@author" Append authors, m.SubMatches(1)
+						Case "@param" Append params, m.SubMatches(1)
+						Case "@raise" Append errors, m.SubMatches(1)
+						Case "@see" Append refs, m.SubMatches(1)
+						Case Else
+							If tags.Exists(currentTag) Then
+								' Re-definiton of a tag that's supposed to be unique per
+								' documentation block may be undesired.
+								If Not beQuiet Then log.LogWarning "Duplicate definition of tag " & currentTag _
+									& ": " & m.SubMatches(1)
+								tags(currentTag) = m.SubMatches(1)
+							Else
+								tags.Add currentTag, m.SubMatches(1)
+							End If
+					End Select
+				End If
+			Next
+		Else
+			' line does not begin with a tag
+			' => line must be either empty, first line of detail description, or
+			'    continuation of previous line.
+			line = Trim(Mid(line, 3))   ' strip '! from beginning of line
+			If line = "" Then
+				If currentTag = "@details" Then
+					tags("@details") = tags("@details") & vbNewLine
+				Else
+					currentTag = Null
+				End If
+			Else
+				' Make "@details" currentTag if currentTag is not set. Then append
+				' comment text to currentTag.
+				If IsNull(currentTag) Then currentTag = "@details"
+				Select Case currentTag
+					Case "@author" Append authors(UBound(authors)), line
+					Case "@param" Append params(UBound(params)), line
+					Case "@raise" Append errors(UBound(errors)), line
+					Case "@see" Append refs(UBound(refs)), line
+					Case Else
+						If tags.Exists(currentTag) Then
+							If currentTag = "@details" And Left(line, 2) = "- " Then
+								' line is list element => new line
+								tags(currentTag) = tags(currentTag) & vbNewLine & line
+							Else
+								' line is not a list element (or the continuation of a list
+								' element) => append text
+								tags(currentTag) = tags(currentTag) & " " & line
+							End If
+						Else
+							tags.Add currentTag, line
+						End If
+				End Select
+			End If
+		End If
+	Next
+
+	If UBound(authors) > -1 Then tags.Add "@author", authors
+	If UBound(params) > -1 Then tags.Add "@param", params
+	If UBound(errors) > -1 Then tags.Add "@raise", errors
+	If UBound(refs) > -1 Then tags.Add "@see", refs
+
+	' If no short description was given, set it to the first full sentence (or
+	' the first line, whichever is the shorter match) of the long description.
+	' If no long description was given, set it to the short description.
+	' Do nothing if neither short nor long description were given.
+	If Not tags.Exists("@brief") And tags.Exists("@details") Then
+		Set re = CompileRegExp("([.!?\n]).*", True, True)
+		tags.Add "@brief", Replace(re.Replace(tags("@details"), "$1"), vbLf, "")
+		re.Pattern = "[,;:]$"
+		tags("@brief") = re.Replace(tags("@brief"), ".")
+	ElseIf tags.Exists("@brief") And Not tags.Exists("@details") Then
+		tags.Add "@details", tags("@brief")
+	End If
+
+	Set ProcessComments = tags
+End Function
+
 ' ------------------------------------------------------------------------------
 ' HTML code generation
 ' ------------------------------------------------------------------------------
@@ -624,11 +644,11 @@ End Function
 '! @param  title      Title of the HTML page
 '! @param  stylsheet  Path to the stylesheet for the HTML page.
 Private Sub WriteHeader(outFile, title, stylesheet)
+	If projectName <> "" Then title = projectName & ": " & title
 	outFile.WriteLine "<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Frameset//EN""" & vbNewLine _
 		& vbTab & """http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd"">" & vbNewLine _
 		& "<html>" & vbNewLine & "<head>" & vbNewLine _
-		& "<title>" & projectName & ": " & title & "</title>" & vbNewLine _
-		& "<meta name=""author"" content=""" & author & """ />" & vbNewLine _
+		& "<title>" & title & "</title>" & vbNewLine _
 		& "<meta name=""date"" content=""" & FormatDate(Now) & """ />" & vbNewLine _
 		& "<meta http-equiv=""content-type"" content=""text/html; charset=iso-8859-1"" />" & vbNewLine _
 		& "<meta http-equiv=""content-language"" content=""en"" />" & vbNewLine _
@@ -673,7 +693,7 @@ End Sub
 '! @return The summary documentation in HTML format.
 Private Function GenPropertySummary(ByVal name, ByVal accessibility, ByVal tags)
 	name = EncodeHTMLEntities(name)
-	signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span> (" & accessibility & ")"
+	signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>"
 	GenPropertySummary = GenSummary(signature, tags)
 End Function
 
@@ -807,8 +827,8 @@ Private Function GenConstDetails(ByVal name, ByVal value, ByVal visibility, ByVa
 	GenConstDetails = GenDetailsHeading(heading, signature) & GenDetailsInfo(tags) & GenReferencesInfo(tags)
 End Function
 
-'! Generate author information from the respective tag (@author). Should an
-'! author info have an e-mail address, that address is made into a hyperlink.
+'! Generate author information from @author tags. Should the tag also contain
+'! an e-mail address, that address is made into a hyperlink.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -834,8 +854,8 @@ Private Function GenAuthorInfo(tags)
 	GenAuthorInfo = info
 End Function
 
-'! Generate references ("see also") information from the respective tag (@see).
-'! All values are made into hyperlinks (either internal or external).
+'! Generate references ("see also") information from @see tags. All values are
+'! made into hyperlinks (either internal or external).
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -853,8 +873,8 @@ Private Function GenReferencesInfo(tags)
 	GenReferencesInfo = info
 End Function
 
-'! Generate version information from the respective tag (@version). If an @date
-'! tag is present as well, its value is appended to the version.
+'! Generate version information from the @version tag. If an @date tag is
+'! present as well, its value is appended to the version.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -871,8 +891,8 @@ Private Function GenVersionInfo(tags)
 	GenVersionInfo = info
 End Function
 
-'! Generate a heading and signature line for a detail section. The heading is
-'! created as <h3>.
+'! Generate HTML code for heading and signature line in a "detail" section.
+'! The heading is created as <h3>.
 '!
 '! @param  heading   The heading text.
 '! @param  signature The signature of the procedure, variable or constant.
@@ -882,7 +902,7 @@ Private Function GenDetailsHeading(heading, signature)
 		& signature & "</code></p>" & vbNewLine
 End Function
 
-'! Generate detail information from the respective tag (@detail).
+'! Generate detail information from the @detail tag.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -916,7 +936,7 @@ Private Function GenDetailsInfo(tags)
 	GenDetailsInfo = Replace(info, vbLf, vbNewLine) & vbNewLine
 End Function
 
-'! Generate parameter information from the respective tag (@param).
+'! Generate parameter information from @param tags.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -936,7 +956,7 @@ Private Function GenParameterInfo(tags)
 	GenParameterInfo = info
 End Function
 
-'! Generate return value information from the respective tag (@return).
+'! Generate return value information from the @return tag.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -948,8 +968,8 @@ Private Function GenReturnValueInfo(tags)
 		& "<p class=""value"">" & EncodeHTMLEntities(tags("@return")) & "</p>" & vbNewLine
 End Function
 
-'! Generate information on the errors raised by a method/procedure from the
-'! respective tag (@raise).
+'! Generate information on the errors raised by a method/procedure from @raise
+'! tags.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -991,7 +1011,7 @@ Private Function CreateLink(ByVal ref, ByVal isMailTo)
 	CreateLink = "<a href=""" & ref & """" & link & "</a>"
 End Function
 
-'! Generate summary information from the respective tag (@brief).
+'! Generate summary information from the @brief tag.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -1003,6 +1023,29 @@ Private Function GenSummary(name, tags)
 		& EncodeHTMLEntities(tags("@brief")) & "</p>" & vbNewLine
 	GenSummary = summary
 End Function
+
+'! Create a stylesheet with the given filename.
+'!
+'! @param  filename   Name (including relative or absolute path) of the file
+'!                    to create.
+Private Sub CreateStylesheet(filename)
+	Set f = fso.OpenTextFile(filename, ForWriting, True)
+	f.WriteLine "* { margin: 0; padding: 0; border: 0; }" & vbNewLine _
+		& "body { margin: 10px; margin-bottom: 30px; font-family: " & TextFont & "; font-size: " & BaseFontSize & "; }" & vbNewLine _
+		& "h1,h2,h3,h4 { font-weight: bold; }" & vbNewLine _
+		& "h1 { font-size: 200%; margin-bottom: 10px; }" & vbNewLine _
+		& "h2 { background-color: #ccccff; border: 1px solid black; font-size: 150%; margin: 20px 0 10px; padding: 10px 5px; }" & vbNewLine _
+		& "h3,p { margin-bottom: 5px; }" & vbNewLine _
+		& "h4,p.description { margin: 3px 0 0 50px; }" & vbNewLine _
+		& "h4 { margin-top: 6px; margin-bottom: 4px; }" & vbNewLine _
+		& "p.value { margin-left: 100px; }" & vbNewLine _
+		& "code { font-family: " & CodeFont & "; }" & vbNewLine _
+		& "span.name { font-weight: bold; }" & vbNewLine _
+		& "hr { border: 1px solid #a0a0a0; width: 90%; margin: 10px 0; }" & vbNewLine _
+		& "ul { list-style: disc inside; margin-left: 50px; }" & vbNewLine _
+		& "ul.description { margin-left: 75px; }"
+	f.Close
+End Sub
 
 ' ------------------------------------------------------------------------------
 ' Consistency checks
@@ -1090,12 +1133,15 @@ Sub CheckRemainingCode(str)
 	' "Option Explicit" statement can be ignored, so remove it.
 	Set re = CompileRegExp("Option[ \t]+Explicit", True, True)
 	str = re.Replace(str, "")
+	' Also remove comment lines.
+	re.Pattern = "(^|\n)[ \t]*'.*"
+	str = re.Replace(str, vbLf)
 
 	If Trim(Replace(Replace(str, vbTab, ""), vbLf, "")) <> "" Then
 		' there's still some (global) code left
 		str = MangleBlankLines(Replace(str, vbLf, vbNewLine), 2)
 		str = "> " & Replace(str, vbNewLine, vbNewLine & "> ")  ' prepend each line with "> "
-		If Not beQuiet Then log.LogWarning "Unencapsulated global code!" & vbNewLine & str
+		If Not beQuiet Then log.LogWarning "Unencapsulated global code:" & vbNewLine & str
 	End If
 End Sub
 
@@ -1350,7 +1396,7 @@ Private Function MangleBlankLines(ByVal str, ByVal number)
 	str = re.Replace(str, replacement)
 
 	' Remove leading/trailing newlines.
-	re.Pattern = "(^" & vbNewLine & "|" & vbNewLine & "$)"
+	re.Pattern = "(^" & replacement & "|" & replacement & "$)"
 	str = re.Replace(str, "")
 
 	MangleBlankLines = str
@@ -1369,25 +1415,18 @@ Private Function GetStylesheetPath(docDir)
 	GetStylesheetPath = re.Replace(Replace(docDir & "\", docRoot & "\", "", 1, 1), "../")
 End Function
 
-'! Create a stylesheet with the given filename.
-'!
-'! @param  filename   Name (including relative or absolute path) of the file
-'!                    to create.
-Private Sub CreateStylesheet(filename)
-	Set f = fso.OpenTextFile(filename, ForWriting, True)
-	f.WriteLine "* { margin: 0; padding: 0; border: 0; }" & vbNewLine _
-		& "body { margin: 10px; margin-bottom: 30px; font-family: " & TextFont & "; font-size: " & BaseFontSize & "; }" & vbNewLine _
-		& "h1,h2,h3,h4 { font-weight: bold; }" & vbNewLine _
-		& "h1 { font-size: 200%; margin-bottom: 10px; }" & vbNewLine _
-		& "h2 { background-color: #ccccff; border: 1px solid black; font-size: 150%; margin: 20px 0 10px; padding: 10px 3px; }" & vbNewLine _
-		& "h3,p { margin-bottom: 5px; }" & vbNewLine _
-		& "h4,.description { margin: 3px 0 0 50px; }" & vbNewLine _
-		& "p.value { margin-left: 100px; }" & vbNewLine _
-		& "code { font-family: " & CodeFont & "; }" & vbNewLine _
-		& "span.name { font-weight: bold; }" & vbNewLine _
-		& "hr { border: 1px solid #a0a0a0; width: 90%; margin: 10px 0; }" & vbNewLine _
-		& "ul { list-style: disc inside; }"
-	f.Close
+'! Display usage information and exit.
+Private Sub PrintUsage()
+	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/a] [/q] [/p:NAME] /s:SOURCE_DIR /d:DOC_DIR" & vbNewLine _
+		& vbTab & WScript.ScriptName & " /?" & vbNewLine & vbNewLine _
+		& vbTab & "/a   Generate documentation for all elements (public and private)." & vbNewLine _
+		& vbTab & "     Without this option, documentation is generated only for public" & vbNewLine _
+		& vbTab & "     elements." & vbNewLine _
+		& vbTab & "/d   Generate documentation in DOC_DIR." & vbNewLine _
+		& vbTab & "/p   Use NAME as the project name." & vbNewLine _
+		& vbTab & "/q   Don't print warnings." & vbNewLine _
+		& vbTab & "/s   Read source files from SOURCE_DIR."
+	WScript.Quit 0
 End Sub
 
 ' ==============================================================================
@@ -1398,6 +1437,8 @@ End Sub
 '! @param  filename  Name of the file to import (can be either absolute or relative)
 '!
 '! @raise  Path not found (0x4c)
+'!
+'! @see http://gazeek.com/coding/importing-vbs-files-in-your-vbscript-project/
 Private Sub Import(ByVal filename)
 	Dim fso, sh, file, code, dir
 

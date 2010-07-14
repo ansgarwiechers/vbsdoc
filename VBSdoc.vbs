@@ -21,7 +21,7 @@
 
 '! @todo add tag @mainpage for documentation on the global index page?
 '! @todo add HTMLHelp generation?
-'! @todo add grouping option for doc-comments? (like doxygen's @{ ... @})
+'! @todo add grouping option for doc comments? (like doxygen's @{ ... @})
 
 Option Explicit
 
@@ -47,24 +47,24 @@ Private log : Set log = New Logger
 
 '! Match line-continuations.
 Private reLineCont : Set reLineCont = CompileRegExp("[ \t]+_\n[ \t]*", True, True)
-'! Match End-of-Line doc-comments.
+'! Match End-of-Line doc comments.
 Private reEOLComment : Set reEOLComment = CompileRegExp("(^|\n)([ \t]*[^' \t\n].*)('![ \t]*.*(\n[ \t]*'!.*)*)", True, True)
-'! Match @todo-tagged doc-comments.
+'! Match @todo-tagged doc comments.
 Private reTodo     : Set reTodo = CompileRegExp("'![ \t]*@todo[ \t]*(.*\n([ \t]*'!([ \t]*[^@\s].*|\s*)\n)*)", True, True)
-'! Match class implementations and prepended doc-comments.
+'! Match class implementations and prepended doc comments.
 Private reClass    : Set reClass = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*Class[ \t]+(\w+)([\s\S]*?)End[ \t]+Class", True, True)
-'! Match constructor implementations and prepended doc-comments.
+'! Match constructor implementations and prepended doc comments.
 Private reCtor     : Set reCtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Initialize)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
-'! Match destructor implementations and prepended doc-comments.
+'! Match destructor implementations and prepended doc comments.
 Private reDtor     : Set reDtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Terminate)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
 '! Match implementations of methods/procedures as well as prepended
-'! doc-comments.
+'! doc comments.
 Private reMethod   : Set reMethod = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?(Function|Sub)[ \t]+(\w+)[ \t]*(\([\w\t ,]*\))?[\s\S]*?End[ \t]+\6", True, True)
-'! Match property implementations and prepended doc-comments.
+'! Match property implementations and prepended doc comments.
 Private reProperty : Set reProperty = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Property[ \t]+(Get|Let|Set)[ \t]+(\w+)[ \t]*(\([\w\t ]*\))?[\s\S]*?End[ \t]+Property", True, True)
-'! Match definitions of constants and prepended doc-comments.
+'! Match definitions of constants and prepended doc comments.
 Private reConst    : Set reConst = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Const[ \t]+(\w+)[ \t]*=[ \t]*(.*)", True, True)
-'! Match variable declarations and prepended doc-comments. Allow declaration +
+'! Match variable declarations and prepended doc comments. Allow declaration +
 '! definition as well as multiple declarations of variables on one line, e.g.:
 '!   Dim foo : foo = 42
 '!   Dim foo, bar, baz
@@ -206,7 +206,7 @@ Public Function GenFileDoc(filename, docDir, stylesheet, includePrivate)
 	' Join continued lines.
 	content = reLineCont.Replace(content, " ")
 
-	' Move End-of-Line doc-comments to front.
+	' Move End-of-Line doc comments to front.
 	content = reEOLComment.Replace(content, vbLf & "$3" & vbLf & "$2")
 
 	todoList = GenTodoList(content)
@@ -223,7 +223,7 @@ Public Function GenFileDoc(filename, docDir, stylesheet, includePrivate)
 	Set constDoc = GenConstDoc(content, includePrivate)
 	Set varDoc = GenVariableDoc(content, includePrivate)
 
-	' process file-global doc-comments
+	' process file-global doc comments
 	fileDoc = ""
 	Set reDocComment = CompileRegExp("^[ \t]*('!.*)", True, True)
 	For Each line In Split(content, vbLf)
@@ -1178,7 +1178,7 @@ Private Sub CheckRetvalMismatch(ByVal funcType, ByVal name, ByVal hasRetval)
 	End Select
 End Sub
 
-'! Check for pointless documentation tags in the doc-comments of identifiers.
+'! Check for pointless documentation tags in the doc comments of identifiers.
 '! Applies to both variables and constants.
 '!
 '! @param  name   Name of the identifier.

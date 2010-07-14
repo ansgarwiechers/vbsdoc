@@ -22,54 +22,144 @@ Requirements
 VBSdoc uses my Logger class [3] for displaying messages.
 
 
-Doc-comments
+Doc Comments
 ------------
 VBSdoc comments begin with the string '! (apostrophe followed by an
 exclamation mark) and must be placed either before the element they
-refer to (without blank lines between doc-comment and code) or at the
+refer to (without blank lines between doc comment and code) or at the
 end of the code line. Examples:
 
 - Valid:
-    '! Some procedure.
-    '! @param bar Input value
-    Sub Foo(bar)
+  '! Some procedure.
+  '! @param bar Input value
+  Sub Foo(bar)
 
 - Valid:
-    Const Bar = 42  '! Some constant.
-                    '! @see <http://www.example.org/>
+  Const Bar = 42  '! Some constant.
+                  '! @see <http://www.example.org/>
 
-- Not valid (blank line between doc-comment and code):
-    '! Some procedure.
-    '! @param bar Input value
+- Not valid (blank line between doc comment and code):
+  '! Some procedure.
+  '! @param bar Input value
 
     Function Foo
 
-- Not valid (regular comment between doc-comment and code):
-    '! Some procedure.
-    '! @param bar Input value
-    ' other comment
-    Function Foo
+- Not valid (regular comment between doc comment and code):
+  '! Some procedure.
+  '! @param bar Input value
+  ' other comment
+  Function Foo
+
+All doc comments for a given code element must be in one consecutive doc
+comment block either right before the element, or starting at the end of
+the line with the element. Examples:
+
+- Antecedent doc comment:
+  '! Some comment.        <- NOT part of the documentation for Foo()
+
+  '! Some other comment.  <- part of the documentation for Foo()
+  Function Foo
+
+- End-of-Line doc comment:
+  Const Bar = 42  '! Some End-of-Line   <- part of the documentation
+                  '! comment.           <- part of the documentation
+
+                  '! Some other comment <- NOT part of the documentation
 
 
 Tags
 ----
+Tags are used to structure doc comment information. Comment text is
+appended to the most recent tag until either the next tag or a blank
+comment line appear. A doc comment like this:
+
+  '! @tag This
+  '!      is some
+  '!      text.
+  '!
+  '! @other_tag Some other text.
+
+is identical to a doc comment like this:
+
+  '! @tag This is some text.
+  '! @other_tag Some other text.
+
+Any doc comment that is not associated with a tag is assigned/appended
+to the default tag (@details). Detail comments that are separated by
+either blank doc comment lines or other tags, become separate paragraphs
+in the documentation. Detail comments (and only detail comments) also
+support bulleted lists:
+
+  '! Some enumeration:
+  '! - item A
+  '! - item B
+  '! - item C
+
 Supported tags are:
 
 @author   Name and/or mail address of the author. Optional, multiple
           tags per documented element are allowed.
+
 @brief    Summary information. If this tag is omitted, but @details is
           defined, summary information is auto-generated from the first
           sentence or line of the detail information. Should appear at
           most once per documented element.
+
 @date     The release date. Valid for files and classes, otherwise
           ignored. Optional.
-@details
-@param
-@raise
-@return
-@see
+
+@details  Detailed description of the procedure, property or identifyer.
+          This is the default tag. The keyword is optional; anything
+          that is not associated with any other tag is assigned or
+          appended to this tag. If a doc comment does not contain any
+          detail description, but does have a summary, the detail
+          description is set to the same text as the summary.
+
+@param    Name and description of a function/procedure parameter. Must
+          have the form
+            @param  NAME  DESCRIPTION
+          Where @param-keyword, parameter name and description can be
+          separated by any amount of whitespace (except for newlines,
+          of course). Valid for functions/procedures with arguments.
+          Multiple tags per documented function/procedure are allowed.
+
+@raise    Description of the errors a function or procedure might raise.
+          Optional, multiple tags per documented element are allowed.
+          Valid only for procedures/functions (including properties).
+
+@return   Description of the return value of a function. Required for
+          functions, must not appear with any other element. Must not
+          appear more than once.
+
+@see      Link to some other resource (external or internal). External
+          references should be given as URLs (e.g. http://example.org/).
+          For internal references only references within the same file
+          are supported as of yet. Optional, multiple tags per
+          documented element are allowed.
+
 @todo
-@version
+
+@version  Version number. Valid for files and classes, otherwise
+          ignored. Optional.
+
+Any sensible documentation should have at least a summary or a detail
+description. If both are missing, a warning will be issued, although
+the documentation generation will continue.
+
+
+Invocation
+----------
+Usage:  VBSdoc.vbs [/a] [/q] [/p:NAME] /s:SOURCE /d:DOC_DIR
+        VBSdoc.vbs /?
+
+        /a   Generate documentation for all elements (public and private).
+             Without this option, documentation is generated for public
+             elements only.
+        /d   Generate documentation in DOC_DIR.
+        /p   Use NAME as the project name.
+        /q   Don't print warnings.
+        /s   Source to generate documentation from. Can be a file or a
+             directory.
 
 
 References

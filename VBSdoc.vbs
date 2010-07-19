@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2010-07-13
-'! @version 1.0
+'! @date    2010-07-19
+'! @version 0.9b
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -19,9 +19,9 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-'! @todo add tag @mainpage for documentation on the global index page?
-'! @todo add HTMLHelp generation?
-'! @todo add grouping option for doc comments? (like doxygen's @{ ... @})
+'! @todo Add tag @mainpage for global documentation on the global index page?
+'! @todo Add HTMLHelp generation?
+'! @todo Add grouping option for doc comments? (like doxygen's @{ ... @})
 
 Option Explicit
 
@@ -31,7 +31,7 @@ Import "LoggerClass.vbs"
 Private Const ForReading = 1
 Private Const ForWriting = 2
 
-Private Const vbAll = -1
+Private Const vbReplaceAll = -1
 
 Private Const Extension = "vbs"
 
@@ -64,10 +64,11 @@ Private reMethod   : Set reMethod = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*
 Private reProperty : Set reProperty = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Property[ \t]+(Get|Let|Set)[ \t]+(\w+)[ \t]*(\([\w\t ]*\))?[\s\S]*?End[ \t]+Property", True, True)
 '! Match definitions of constants and prepended doc comments.
 Private reConst    : Set reConst = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Const[ \t]+(\w+)[ \t]*=[ \t]*(.*)", True, True)
-'! Match variable declarations and prepended doc comments. Allow declaration +
-'! definition as well as multiple declarations of variables on one line, e.g.:
-'!   Dim foo : foo = 42
-'!   Dim foo, bar, baz
+'! Match variable declarations and prepended doc comments. Allow for combined
+'! declaration:definition as well as multiple declarations of variables on
+'! one line, e.g.:
+'!   - Dim foo : foo = 42
+'!   - Dim foo, bar, baz
 Private reVar      : Set reVar = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*(Public|Private|Dim|ReDim)[ \t]+(((\w+)([ \t]*\(\))?)[ \t]*(:[ \t]*(Set[ \t]+)?\7[ \t]*=.*|(,[ \t]*\w+[ \t]*(\(\))?)*))", True, True)
 
 '! Dictionary listing the tags that VBSdoc accepts.
@@ -88,6 +89,10 @@ Private beQuiet, projectName, docRoot, indexFile
 Main WScript.Arguments
 
 
+'! The starting point. Evaluates commandline arguments, initializes
+'! global variables and starts the documentation generation.
+'!
+'! @param  args   The list of arguments passed to the script.
 Public Sub Main(args)
 	Dim includePrivate, srcRoot
 
@@ -183,7 +188,7 @@ End Sub
 '! @param  includePrivate Include documentation for private elements.
 '! @return The name and path of the generated documentation file.
 Public Function GenFileDoc(filename, docDir, stylesheet, includePrivate)
-	Dim outDir, inFile, outFile, content
+	Dim outDir, inFile, outFile, content, m
 	Dim todoList, classInfo, classes, entry, line, tags
 	Dim fileDoc, procDoc, constDoc, varDoc, reDocComment, docName
 
@@ -207,7 +212,16 @@ Public Function GenFileDoc(filename, docDir, stylesheet, includePrivate)
 	content = reLineCont.Replace(content, " ")
 
 	' Move End-of-Line doc comments to front.
-	content = reEOLComment.Replace(content, vbLf & "$3" & vbLf & "$2")
+	For Each m In reEOLComment.Execute(content)
+		With m.SubMatches
+			' Move doc comment to front only if the substring left of the doc comment
+			' signifier ('!) contains an even number of double quotes. Otherwise the
+			' signifier is inside a string, i.e. does not start an actual doc comment.
+			If (Len(.Item(1)) - Len(Replace(.Item(1), """", ""))) Mod 2 = 0 Then
+				content = Replace(content, m, vbLf & .Item(2) & vbLf & .Item(1), 1, 1)
+			End If
+		End With
+	Next
 
 	todoList = GenTodoList(content)
 
@@ -421,8 +435,8 @@ Private Function GenMethodDoc(ByRef code, ByVal includePrivate)
 					params = ""
 				End If
 				params = Replace(params, vbTab, " ")
-				params = Replace(params, "ByVal ", "", 1, vbAll, vbTextCompare)
-				params = Replace(params, "ByRef ", "", 1, vbAll, vbTextCompare)
+				params = Replace(params, "ByVal ", "", 1, vbReplaceAll, vbTextCompare)
+				params = Replace(params, "ByRef ", "", 1, vbReplaceAll, vbTextCompare)
 				params = Split(Replace(params, " ", ""), ",")
 
 				Set tags = ProcessComments(.Item(1))
@@ -677,7 +691,7 @@ End Function
 '!
 '! @param  outFile    Handle to a file.
 '! @param  title      Title of the HTML page
-'! @param  stylsheet  Path to the stylesheet for the HTML page.
+'! @param  stylesheet Path to the stylesheet for the HTML page.
 Private Sub WriteHeader(outFile, title, stylesheet)
 	If projectName <> "" Then title = projectName & ": " & title
 	outFile.WriteLine "<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Frameset//EN""" & vbNewLine _
@@ -1077,6 +1091,7 @@ End Function
 
 '! Generate summary information from the @brief tag.
 '!
+'! @param  name   Name of the documented element.
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
 '! @return HTML snippet with the summary information. Empty string if no
@@ -1107,7 +1122,7 @@ Private Sub CreateStylesheet(filename)
 		& "code { font-family: " & CodeFont & "; }" & vbNewLine _
 		& "span.name { font-weight: bold; }" & vbNewLine _
 		& "hr { border: 1px solid #a0a0a0; width: 94%; margin: 10px 3%; }" & vbNewLine _
-		& "ul { list-style: disc inside; margin-left: 50px; }" & vbNewLine _
+		& "ul { list-style: disc inside; margin-left: 50px; padding: 5px 0; }" & vbNewLine _
 		& "ul.description { margin-left: 75px; }" & vbNewLine _
 		& "li { text-indent: -1em; margin-left: 1em; }"
 	f.Close
@@ -1303,8 +1318,8 @@ Private Function EncodeHTMLEntities(ByVal text)
 	text = Replace(text, "<=", "&lArr;")
 	text = Replace(text, "=>", "&&rArr;")
 	text = Replace(text, "...", "…")
-	text = Replace(text, "(c)", "©", 1, vbAll, vbTextCompare)
-	text = Replace(text, "(r)", "®", 1, vbAll, vbTextCompare)
+	text = Replace(text, "(c)", "©", 1, vbReplaceAll, vbTextCompare)
+	text = Replace(text, "(r)", "®", 1, vbReplaceAll, vbTextCompare)
 
 	' encode all other HTML entities
 	text = Replace(text, "ä", "&auml;")
@@ -1472,6 +1487,7 @@ End Function
 Private Sub PrintUsage()
 	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/a] [/q] [/p:NAME] /s:SOURCE /d:DOC_DIR" & vbNewLine _
 		& vbTab & WScript.ScriptName & " /?" & vbNewLine & vbNewLine _
+		& vbTab & "/?   Print this help." & vbNewLine _
 		& vbTab & "/a   Generate documentation for all elements (public and private)." & vbNewLine _
 		& vbTab & "     Without this option, documentation is generated for public" & vbNewLine _
 		& vbTab & "     elements only." & vbNewLine _

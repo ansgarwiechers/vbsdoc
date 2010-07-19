@@ -19,12 +19,65 @@ See COPYING.txt.
 
 Requirements
 ------------
-VBSdoc uses my Logger class [3] for displaying messages.
+VBSdoc uses this Logger class [3] for displaying messages.
+
+
+Usage
+-----
+VBSdoc.vbs [/a] [/q] [/p:NAME] /s:SOURCE /d:DOC_DIR
+VBSdoc.vbs /?
+
+  /?   Print this help.
+  /a   Generate documentation for all elements (public and private).
+       Without this option, documentation is generated for public
+       elements only.
+  /d   Generate documentation in DOC_DIR.
+  /p   Use NAME as the project name.
+  /q   Don't print warnings.
+  /s   Source to generate documentation from. Can be a file or a
+       directory.
+
+
+Output Format
+-------------
+The documentation is generated in HTML format inside the DOC_DIR
+directory (see above). For each source file a sub-directory with the
+same name (without the extension "vbs") is created, that contains one
+or more documentation files. One documentation file for the global
+code in the script, and one additional file for each class the script
+contains.
+
+Examples: Processing a single script Foo.vbs that contains two classes
+          (Bar and Baz) will produce this documentation structure:
+
+          DOC_DIR\
+           `- Foo\
+               +- Bar.html    <- documentation of class Bar
+               +- Baz.html    <- documentation of class Baz
+               +- index.html  <- documentation of Foo's global code
+               `- vbsdoc.css  <- stylesheet
+
+          Processing a source directory with two scripts Foo.vbs and
+          Bar.vbs, of which only Foo.vbs contains a class (Baz) will
+          produce these documentation structure:
+
+          DOC_DIR\
+           +- Foo\
+           |   +- Baz.html    <- documentation of class Baz
+           |   `- index.html  <- documentation of Foo's global code
+           +- Bar\
+           |   `- index.html  <- documentation of Bar's global code
+           +- index.html      <- index of global documentation files
+           `- vbsdoc.css      <- stylesheet
+
+By default, only code elements with visibility "Public" will be included in
+the documentation. Private elements will be omitted, unless the option /a is
+used.
 
 
 Doc Comments
 ------------
-VBSdoc comments begin with the string '! (apostrophe followed by an
+VBSdoc comments begin with the string "'!" (apostrophe followed by an
 exclamation mark) and must be placed either before the element they
 refer to (without blank lines between doc comment and code) or at the
 end of the code line. Examples:
@@ -35,7 +88,7 @@ end of the code line. Examples:
   Sub Foo(bar)
 
 - Valid:
-  Const Bar = 42  '! Some constant.
+  Const BAR = 42  '! Some constant.
                   '! @see <http://www.example.org/>
 
 - Not valid (blank line between doc comment and code):
@@ -55,16 +108,16 @@ comment block either right before the element, or starting at the end of
 the line with the element. Examples:
 
 - Antecedent doc comment:
-  '! Some comment.        <- NOT part of the documentation for Foo()
+  '! Some comment.        <- not part of the documentation for Foo()
 
   '! Some other comment.  <- part of the documentation for Foo()
   Function Foo
 
 - End-of-Line doc comment:
-  Const Bar = 42  '! Some End-of-Line   <- part of the documentation
-                  '! comment.           <- part of the documentation
+  Const BAR = 42  '! Some End-of-Line   <- part of the documentation for BAR
+                  '! comment.           <- part of the documentation for BAR
 
-                  '! Some other comment <- NOT part of the documentation
+                  '! Some other comment <- not part of the documentation for BAR
 
 
 Tags
@@ -87,8 +140,7 @@ is identical to a doc comment like this:
 Any doc comment that is not associated with a tag is assigned/appended
 to the default tag (@details). Detail comments that are separated by
 either blank doc comment lines or other tags, become separate paragraphs
-in the documentation. Detail comments (and only detail comments) also
-support bulleted lists:
+in the documentation. They also do support bulleted lists:
 
   '! Some enumeration:
   '! - item A
@@ -133,37 +185,26 @@ Supported tags are:
 
 @see      Link to some other resource (external or internal). External
           references should be given as URLs (e.g. http://example.org/).
-          For internal references only references within the same file
-          are supported as of yet. Optional, multiple tags per
-          documented element are allowed.
+          As for internal references, right now only references within
+          the same documentation file are supported. Optional, multiple
+          tags per documented element are allowed.
 
-@todo
+@todo     An unfinished task. @todo doc comments are somewhat special,
+          as they are extracted from source files before the processing
+          of the actual code elements. They're grouped into one list
+          per source file that is placed at the beginning of the main
+          documentation file for that source file. Optional.
 
 @version  Version number. Valid for files and classes, otherwise
           ignored. Optional.
 
-Any sensible documentation should have at least a summary or a detail
-description. If both are missing, a warning will be issued, although
-the documentation generation will continue.
-
-
-Invocation
-----------
-Usage:  VBSdoc.vbs [/a] [/q] [/p:NAME] /s:SOURCE /d:DOC_DIR
-        VBSdoc.vbs /?
-
-        /a   Generate documentation for all elements (public and private).
-             Without this option, documentation is generated for public
-             elements only.
-        /d   Generate documentation in DOC_DIR.
-        /p   Use NAME as the project name.
-        /q   Don't print warnings.
-        /s   Source to generate documentation from. Can be a file or a
-             directory.
+Sensible documentation for any given element should have at least a summary
+or a detail description. If both are missing, a warning will be issued,
+although the documentation generation will continue.
 
 
 References
 ----------
 [1] http://vbdox.sourceforge.net/
 [2] http://www.doxygen.org/
-[3] http://www.planetcobalt.net/download/LoggerClass-1.0.zip
+[3] http://www.planetcobalt.net/download/LoggerClass-1.1.zip

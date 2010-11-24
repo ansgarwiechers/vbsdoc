@@ -100,6 +100,8 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("en").Add "CONST_SUMMARY"   , "Global Constant Summary"
 		localize("en").Add "CTORDTOR_DETAIL", "Constructor/Destructor Detail"
 		localize("en").Add "CTORDTOR_SUMMARY", "Constructor/Destructor Summary"
+		localize("en").Add "FIELD_DETAIL"    , "Field Detail"
+		localize("en").Add "FIELD_SUMMARY"   , "Field Summary"
 		localize("en").Add "EXCEPT"          , "Raises"
 		localize("en").Add "METHOD_DETAIL"   , "Method Detail"
 		localize("en").Add "METHOD_SUMMARY"  , "Method Summary"
@@ -121,9 +123,11 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("de").Add "CLASS_SUMMARY"   , "Klassen - Zusammenfassung"
 		localize("de").Add "CONST_DETAIL"    , "Globale Konstanten - Details"
 		localize("de").Add "CONST_SUMMARY"   , "Globale Konstanten - Zusammenfassung"
-		localize("de").Add "CTORDTOR_DETAIL", "Konstruktor/Destruktor - Details"
+		localize("de").Add "CTORDTOR_DETAIL" , "Konstruktor/Destruktor - Details"
 		localize("de").Add "CTORDTOR_SUMMARY", "Konstruktor/Destruktor - Zusammenfassung"
 		localize("de").Add "EXCEPT"          , "Wirft"
+		localize("en").Add "FIELD_DETAIL"    , "Attribute - Details"
+		localize("en").Add "FIELD_SUMMARY"   , "Attribute - Zusammenfassung"
 		localize("de").Add "METHOD_DETAIL"   , "Methoden - Details"
 		localize("de").Add "METHOD_SUMMARY"  , "Methoden - Zusammenfassung"
 		localize("de").Add "PARAM"           , "Parameter"
@@ -865,6 +869,7 @@ Sub GenDoc(doc, docRoot, lang, title)
 				f.Write GenAuthorInfo(.Item("Metadata"), lang)
 				f.Write GenReferencesInfo(.Item("Metadata"), lang)
 
+				WriteSection f, localize(lang)("FIELD_SUMMARY"), .Item("Fields"), lang, "Variable", True
 				WriteSection f, localize(lang)("PROP_SUMMARY"), .Item("Properties"), lang, "Property", True
 				section = ""
 				If .Item("Constructor").Count > 0 Then section = GenSummary("Class_Initialize", .Item("Constructor"), "Procedure")
@@ -876,6 +881,7 @@ Sub GenDoc(doc, docRoot, lang, title)
 					& "</h2>" & vbNewLine & section
 				WriteSection f, localize(lang)("METHOD_SUMMARY"), .Item("Methods"), lang, "Procedure", True
 
+				WriteSection f, localize(lang)("FIELD_DETAIL"), .Item("Fields"), lang, "Variable", False
 				WriteSection f, localize(lang)("PROP_DETAIL"), .Item("Properties"), lang, "Property", False
 				section = ""
 				If .Item("Constructor").Count > 0 Then section = GenDetails("Class_Initialize", .Item("Constructor"), lang, "Procedure")

@@ -203,6 +203,88 @@ or a detail description. If both are missing, a warning will be issued,
 although the documentation generation will continue.
 
 
+Data Structures
+---------------
+During the data gathering phase, the documentation data and metadata is
+gathered into data structures as lined out below. Square brackets signify
+arrays, curly brackets signify dictionaries. Elements in double quotes are
+name literals. Leaf elements are data types.
+
+{
+outdir = {
+         "Metadata"   = tags
+         "Todo"       = [ string ]
+         "Classes"    = {
+                        name = {
+                               "Metadata"    = tags
+                               "Constructor" = {
+                                               "Parameters" = []
+                                               "IsPrivate"  = boolean
+                                               "Metadata"   = tags
+                                               }
+                               "Destructor"  = {
+                                               "Parameters" = []
+                                               "IsPrivate"  = boolean
+                                               "Metadata"   = tags
+                                               }
+                               "Properties"  = {
+                                               name = {
+                                                      "Readable"  = boolean
+                                                      "Writable"  = boolean
+                                                      "Metadata"  = tags
+                                                      "IsPrivate" = False
+                                                      }
+                                               }
+                               "Methods"     = {
+                                               name = {
+                                                      "Parameters" = [ string ]
+                                                      "IsPrivate"  = boolean
+                                                      "Metadata"   = tags
+                                                      }
+                                               }
+                               "Fields"      = {
+                                               name = {
+                                                      "IsPrivate" = boolean
+                                                      "Metadata"  = tags
+                                                      }
+                                               }
+                               }
+                        }
+         "Procedures" = {
+                        name = {
+                               "Parameters" = [ string ]
+                               "IsPrivate"  = boolean
+                               "Metadata"   = tags
+                               }
+                        }
+         "Constants"  = {
+                        name = {
+                               "Value"     = primitive
+                               "IsPrivate" = boolean
+                               "Metadata"  = tags
+                               }
+                        }
+         "Variables"  = {
+                        name = {
+                               "IsPrivate" = boolean
+                               "Metadata"  = tags
+                               }
+                        }
+}
+
+tags = {
+       "@author"  = [ string ]
+       "@brief"   = string
+       "@date"    = string
+       "@detail"  = string
+       "@param"   = [ string ]
+       "@raise"   = [ string ]
+       "@return"  = string
+       "@see"     = [ string ]
+       "@version" = string
+       }
+
+
 References
 ----------
 [1] http://vbdox.sourceforge.net/

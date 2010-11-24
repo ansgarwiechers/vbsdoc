@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2010-07-19
-'! @version 0.9b
+'! @date    2010-11-21
+'! @version 1.0
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -19,6 +19,7 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+'! @todo build list of internal references and warn when conflicts occur
 '! @todo Add tag @mainpage for global documentation on the global index page?
 '! @todo Add HTMLHelp generation?
 '! @todo Add grouping option for doc comments? (like doxygen's @{ ... @})
@@ -33,12 +34,14 @@ Private Const ForWriting = 2
 
 Private Const vbReplaceAll = -1
 
-Private Const Extension = "vbs"
+Private Const Ext = "vbs"
 
 Private Const StylesheetName = "vbsdoc.css"
 Private Const TextFont       = "Verdana, Arial, helvetica, sans-serif"
 Private Const CodeFont       = "Lucida Console, Courier New, Courier, monospace"
 Private Const BaseFontSize   = "14px"
+
+Private Const DefaultLanguage = "en"
 
 ' Initialize global objects.
 Private fso : Set fso = CreateObject("Scripting.FileSystemObject")
@@ -50,26 +53,29 @@ Private reLineCont : Set reLineCont = CompileRegExp("[ \t]+_\n[ \t]*", True, Tru
 '! Match End-of-Line doc comments.
 Private reEOLComment : Set reEOLComment = CompileRegExp("(^|\n)([ \t]*[^' \t\n].*)('![ \t]*.*(\n[ \t]*'!.*)*)", True, True)
 '! Match @todo-tagged doc comments.
-Private reTodo     : Set reTodo = CompileRegExp("'![ \t]*@todo[ \t]*(.*\n([ \t]*'!([ \t]*[^@\s].*|\s*)\n)*)", True, True)
+Private reTodo : Set reTodo = CompileRegExp("'![ \t]*@todo[ \t]*(.*\n([ \t]*'!([ \t]*[^@\s].*|\s*)\n)*)", True, True)
 '! Match class implementations and prepended doc comments.
-Private reClass    : Set reClass = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*Class[ \t]+(\w+)([\s\S]*?)End[ \t]+Class", True, True)
+Private reClass : Set reClass = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*Class[ \t]+(\w+)([\s\S]*?)End[ \t]+Class", True, True)
 '! Match constructor implementations and prepended doc comments.
-Private reCtor     : Set reCtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Initialize)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
+Private reCtor : Set reCtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Initialize)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
 '! Match destructor implementations and prepended doc comments.
-Private reDtor     : Set reDtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Terminate)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
+Private reDtor : Set reDtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Terminate)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
 '! Match implementations of methods/procedures as well as prepended
 '! doc comments.
-Private reMethod   : Set reMethod = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?(Function|Sub)[ \t]+(\w+)[ \t]*(\([\w\t ,]*\))?[\s\S]*?End[ \t]+\6", True, True)
+Private reMethod : Set reMethod = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?(Function|Sub)[ \t]+(\w+)[ \t]*(\([\w\t ,]*\))?[\s\S]*?End[ \t]+\6", True, True)
 '! Match property implementations and prepended doc comments.
 Private reProperty : Set reProperty = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Property[ \t]+(Get|Let|Set)[ \t]+(\w+)[ \t]*(\([\w\t ]*\))?[\s\S]*?End[ \t]+Property", True, True)
 '! Match definitions of constants and prepended doc comments.
-Private reConst    : Set reConst = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Const[ \t]+(\w+)[ \t]*=[ \t]*(.*)", True, True)
+Private reConst : Set reConst = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Const[ \t]+(\w+)[ \t]*=[ \t]*(.*)", True, True)
 '! Match variable declarations and prepended doc comments. Allow for combined
 '! declaration:definition as well as multiple declarations of variables on
 '! one line, e.g.:
 '!   - Dim foo : foo = 42
 '!   - Dim foo, bar, baz
-Private reVar      : Set reVar = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*(Public|Private|Dim|ReDim)[ \t]+(((\w+)([ \t]*\(\))?)[ \t]*(:[ \t]*(Set[ \t]+)?\7[ \t]*=.*|(,[ \t]*\w+[ \t]*(\(\))?)*))", True, True)
+Private reVar : Set reVar = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*(Public|Private|Dim|ReDim)[ \t]+(((\w+)([ \t]*\(\))?)[ \t]*(:[ \t]*(Set[ \t]+)?\7[ \t]*=.*|(,[ \t]*\w+[ \t]*(\(\))?)*))", True, True)
+'! Match doc comments. This regular expression is used to process file-global
+'! doc comments after all other elements in a given file were processed.
+Private reDocComment : Set reDocComment = CompileRegExp("^[ \t]*('!.*)", True, True)
 
 '! Dictionary listing the tags that VBSdoc accepts.
 Private isValidTag : Set isValidTag = CreateObject("Scripting.Dictionary")
@@ -84,7 +90,55 @@ Private isValidTag : Set isValidTag = CreateObject("Scripting.Dictionary")
 	isValidTag.Add "@todo", True
 	isValidTag.Add "@version", True
 
-Private beQuiet, projectName, docRoot, indexFile
+Private localize : Set localize = CreateObject("Scripting.Dictionary")
+	' English localization
+	localize.Add "en", CreateObject("Scripting.Dictionary")
+		localize("en").Add "AUTHOR"          , "Author"
+		localize("en").Add "CLASS"           , "Class"
+		localize("en").Add "CLASS_SUMMARY"   , "Classes Summary"
+		localize("en").Add "CONST_DETAIL"    , "Global Constant Detail"
+		localize("en").Add "CONST_SUMMARY"   , "Global Constant Summary"
+		localize("en").Add "CTORDTOR_DETAIL", "Constructor/Destructor Detail"
+		localize("en").Add "CTORDTOR_SUMMARY", "Constructor/Destructor Summary"
+		localize("en").Add "EXCEPT"          , "Raises"
+		localize("en").Add "METHOD_DETAIL"   , "Method Detail"
+		localize("en").Add "METHOD_SUMMARY"  , "Method Summary"
+		localize("en").Add "PARAM"           , "Parameters"
+		localize("en").Add "PROC_DETAIL"     , "Global Procedure Detail"
+		localize("en").Add "PROC_SUMMARY"    , "Global Procedure Summary"
+		localize("en").Add "PROP_DETAIL"     , "Property Detail"
+		localize("en").Add "PROP_SUMMARY"    , "Property Summary"
+		localize("en").Add "RETURN"          , "Returns"
+		localize("en").Add "SEE_ALSO"        , "See also"
+		localize("en").Add "TODO"            , "ToDo List"
+		localize("en").Add "VAR_DETAIL"      , "Global Variable Detail"
+		localize("en").Add "VAR_SUMMARY"     , "Global Variable Summary"
+		localize("en").Add "VERSION"         , "Version"
+	' Deutsche Lokalisierung
+	localize.Add "de", CreateObject("Scripting.Dictionary")
+		localize("de").Add "AUTHOR"          , "Autor"
+		localize("de").Add "CLASS"           , "Klasse"
+		localize("de").Add "CLASS_SUMMARY"   , "Klassen - Zusammenfassung"
+		localize("de").Add "CONST_DETAIL"    , "Globale Konstanten - Details"
+		localize("de").Add "CONST_SUMMARY"   , "Globale Konstanten - Zusammenfassung"
+		localize("de").Add "CTORDTOR_DETAIL", "Konstruktor/Destruktor - Details"
+		localize("de").Add "CTORDTOR_SUMMARY", "Konstruktor/Destruktor - Zusammenfassung"
+		localize("de").Add "EXCEPT"          , "Wirft"
+		localize("de").Add "METHOD_DETAIL"   , "Methoden - Details"
+		localize("de").Add "METHOD_SUMMARY"  , "Methoden - Zusammenfassung"
+		localize("de").Add "PARAM"           , "Parameter"
+		localize("de").Add "PROC_DETAIL"     , "Globale Prozeduren - Details"
+		localize("de").Add "PROC_SUMMARY"    , "Global Prozeduren - Zusammenfassung"
+		localize("de").Add "PROP_DETAIL"     , "Eigenschaften - Details"
+		localize("de").Add "PROP_SUMMARY"    , "Eigenschaften - Zusammenfassung"
+		localize("de").Add "RETURN"          , "Rückgabewert"
+		localize("de").Add "SEE_ALSO"        , "Siehe auch"
+		localize("de").Add "TODO"            , "Aufgabenliste"
+		localize("de").Add "VAR_DETAIL"      , "Globale Variablen - Details"
+		localize("de").Add "VAR_SUMMARY"     , "Globale Variablen - Zusammenfassung"
+		localize("de").Add "VERSION"         , "Version"
+
+Private beQuiet, projectName
 
 Main WScript.Arguments
 
@@ -94,85 +148,116 @@ Main WScript.Arguments
 '!
 '! @param  args   The list of arguments passed to the script.
 Public Sub Main(args)
-	Dim includePrivate, srcRoot
+	Dim lang, includePrivate, srcRoot, docRoot, doc
+	Dim docTitle, name
 
-	' initialize global variables with default values
+	' initialize global variables/settings with default values
 	beQuiet = False
-	includePrivate = False
+	log.Debug = False
 	projectName = ""
-	log.Debug = True
+
+	' initialize local variables with default values
+	lang = DefaultLanguage
+	includePrivate = False
 
 	' evaluate commandline arguments
 	With args
-		If args.Named.Exists("?") Then PrintUsage
-		If args.Named.Exists("a") Then includePrivate = True
-		If args.Named.Exists("q") Then beQuiet = True
-		If args.Named.Exists("p") Then projectName = args.Named("p")
+		If .Named.Exists("?") Then PrintUsage(0)
 
-		If args.Named.Exists("s") Then
-			srcRoot = args.Named("s")
-		Else
-			PrintUsage
+		If .Named.Exists("d") Then log.Debug = True
+		If .Named.Exists("a") Then includePrivate = True
+		If .Named.Exists("q") And Not log.Debug Then beQuiet = True
+		If .Named.Exists("p") Then projectName = .Named("p")
+
+		' Use the default language if /l is omitted or used without specifying a
+		' particular language. Use the given language if it exists in localize.Keys.
+		' Otherwise print an error message and exit.
+		If .Named.Exists("l") Then
+			If localize.Exists(.Named("l")) Then
+				lang = .Named("l")
+			ElseIf .Named("l") <> "" Then
+				log.LogError .Named("l") & " is not a supported Language. Valid languages are: " _
+					& Join(Sort(localize.Keys), ", ")
+				WScript.Quit(1)
+			End If
 		End If
 
-		If args.Named.Exists("d") Then
-			docRoot = args.Named("d")
+		If .Named.Exists("i") Then
+			srcRoot = .Named("i")
 		Else
-			PrintUsage
+			PrintUsage(1)
+		End If
+
+		If .Named.Exists("o") Then
+			docRoot = .Named("o")
+		Else
+			PrintUsage(1)
 		End If
 	End With
 
-	' start documentation generation
-	CreateDirectory docRoot
+	log.LogDebug "beQuiet:        " & beQuiet
+	log.LogDebug "projectName:    " & projectName
+	log.LogDebug "lang:           " & lang
+	log.LogDebug "includePrivate: " & includePrivate
+	log.LogDebug "srcRoot:        " & srcRoot
+	log.LogDebug "docRoot:        " & docRoot
+
+	' extract the data
+	Set doc = CreateObject("Scripting.Dictionary")
+
 	If fso.FileExists(srcRoot) Then
-		GenFileDoc srcRoot, docRoot, StylesheetName, includePrivate
-		CreateStylesheet fso.BuildPath(fso.BuildPath(docRoot, fso.GetBaseName(srcRoot)), StylesheetName)
+		doc.Add "", GetFileDef(srcRoot, includePrivate)
+		docTitle = fso.GetFileName(srcRoot)
 	Else
-		Set indexFile = fso.OpenTextFile(fso.BuildPath(docRoot, "index.html"), ForWriting, True)
-		WriteHeader indexFile, "Main Page", StylesheetName
-		If projectName <> "" Then indexFile.WriteLine "<h1>" & projectName & "</h1>"
-
-		GenDoc fso.GetFolder(srcRoot), docRoot, "../" & StylesheetName, includePrivate
-
-		WriteFooter indexFile
-		indexFile.Close
-
-		CreateStylesheet fso.BuildPath(docRoot, StylesheetName)
+		GetDef doc, fso.GetFolder(srcRoot), "", includePrivate
+		docTitle = Null
 	End If
+
+	For Each name In doc.Keys
+		If doc(name) Is Nothing Then doc.Remove(name)
+	Next
+
+	' generate the documentation
+	GenDoc doc, docRoot, lang, docTitle
 
 	WScript.Quit(0)
 End Sub
 
-'! Traverse all subdirecotries of the given srcDir and generate documentation
-'! for all VBS files. If includePrivate is set to True, then documentation for
-'! private elements is generated as well, otherwise only public elements are
-'! included in the documentation. The procedure also creates an index file with
-'! links to the documentation pages of each VBS file.
+' ------------------------------------------------------------------------------
+' Data gathering
+' ------------------------------------------------------------------------------
+
+'! Traverse all subdirecotries of the given srcDir and extract documentation
+'! information from all VBS files. If includePrivate is set to True, then
+'! documentation for private elements is generated as well, otherwise only
+'! public elements are included in the documentation.
 '!
+'! @param  doc            Reference to the dictionary containing the
+'!                        documentation elements extracted from the source
+'!                        files.
 '! @param  srcDir         Directory containing the source files for the
 '!                        documentation generation.
-'! @param  docDir         Absolute or relative path to the directory where the
-'!                        documentation for the files in srcDir should be
-'!                        generated.
-'! @param  stylesheet     Relative path to the stylesheet for the HTML files.
+'! @param  docDir         Path relative to the documentation root directory
+'!                        where the documentation for the files in srcDir
+'!                        should be generated.
 '! @param  includePrivate Include documentation for private elements.
-Public Sub GenDoc(srcDir, docDir, stylesheet, includePrivate)
-	Dim f, dir, docName
+Public Sub GetDef(ByRef doc, srcDir, docDir, includePrivate)
+	Dim f, name, srcFile, dir
+
+	log.LogDebug "GetDef(" & TypeName(doc) & ", " & TypeName(srcDir) & ", " & TypeName(docDir) & ", " & TypeName(includePrivate) & ")"
 
 	For Each f In srcDir.Files
-		If fso.GetExtensionName(f.Name) = Extension Then
-			docName = GenFileDoc(fso.BuildPath(f.ParentFolder, f.Name), docDir, stylesheet, includePrivate)
-			If Not IsNull(docName) Then
-				' Write (global) index file entry.
-				docName = Replace(docName, "\", "/")
-				indexFile.WriteLine "<p><a href=""" & docName & """>" _
-					& Replace(docName, "/index.html", ".vbs") & "</a></p>"
-			End If
+		log.LogDebug "> " & fso.BuildPath(srcDir, f.Name)
+		If LCase(fso.GetExtensionName(f.Name)) = Ext Then
+			name = Replace(fso.BuildPath(docDir, fso.GetBaseName(f.Name)), "\", "/")
+			srcFile = fso.BuildPath(f.ParentFolder, f.Name)
+			doc.Add name, GetFileDef(srcFile, includePrivate)
 		End If
 	Next
 
 	For Each dir In srcDir.SubFolders
-		GenDoc dir, fso.BuildPath(docDir, dir.Name), "../" & stylesheet, includePrivate
+		log.LogDebug "> " & fso.BuildPath(srcDir, dir.Name)
+		GetDef doc, dir, fso.BuildPath(docDir, dir.Name), includePrivate
 	Next
 End Sub
 
@@ -182,27 +267,35 @@ End Sub
 '! otherwise only public elements are included in the documentation.
 '!
 '! @param  filename       Name of the source file for documentation generation.
-'! @param  docDir         Absolute or relative path to the directory where the
-'!                        documentation for the given file should be generated.
-'! @param  stylesheet     Relative path to the stylesheet for the HTML files.
 '! @param  includePrivate Include documentation for private elements.
 '! @return The name and path of the generated documentation file.
-Public Function GenFileDoc(filename, docDir, stylesheet, includePrivate)
-	Dim outDir, inFile, outFile, content, m
-	Dim todoList, classInfo, classes, entry, line, tags
-	Dim fileDoc, procDoc, constDoc, varDoc, reDocComment, docName
+'! @return Dictionary describing structural and metadata elements in the given
+'!         source file.
+Public Function GetFileDef(filename, includePrivate)
+	Dim outDir, inFile, content, m, line, globalComments, document
 
-	GenFileDoc = Null
-	If fso.GetFile(filename).Size = 0 Or Not fso.FileExists(filename) Then Exit Function ' nothing to do
+	log.LogDebug "GetFileDef(" & TypeName(filename) & ", " & TypeName(includePrivate) & ")"
+
+	Set GetFileDef = Nothing
+	If fso.GetFile(filename).Size = 0 Or Not fso.FileExists(filename) Then
+		If fso.FileExists(filename) Then
+			log.LogDebug "File " & filename & " has size 0."
+		Else
+			log.LogDebug "File " & filename & " does not exist."
+		End If
+		Exit Function ' nothing to do
+	End If
 
 	log.LogInfo "Generating documentation for " & filename & " ..."
 
-	outDir = fso.BuildPath(docDir, fso.GetBaseName(filename))
-	CreateDirectory(outDir)
-
+	log.LogDebug "Reading input file " & filename & " ..."
 	Set inFile = fso.OpenTextFile(filename, ForReading)
 	content = inFile.ReadAll
 	inFile.Close
+
+	' ****************************************************************************
+	' preparatory steps
+	' ****************************************************************************
 
 	' Convert all linebreaks to LF, otherwise regular expressions might produce
 	' strings with a trailing CR.
@@ -223,71 +316,39 @@ Public Function GenFileDoc(filename, docDir, stylesheet, includePrivate)
 		End With
 	Next
 
-	todoList = GenTodoList(content)
+	' ****************************************************************************
+	' parsing the content starts here
+	' ****************************************************************************
 
-	classInfo = ""
-	classes = GenClassDoc(content, outDir, stylesheet, includePrivate)
-	For Each entry In classes
-		If classInfo <> "" Then classInfo = classInfo & "<hr/>" & vbNewLine
-		classInfo = classInfo & "<p><span class=""name""><a href=""" & entry(0) & ".html"">" & entry(0) & "</a></span></p>" & vbNewLine
-		If entry(1) <> "" Then classInfo = classInfo & "<p class=""description"">" & entry(1) & "</p>" & vbNewLine
-	Next
+	Set document = CreateObject("Scripting.Dictionary")
 
-	Set procDoc = GenMethodDoc(content, includePrivate)
-	Set constDoc = GenConstDoc(content, includePrivate)
-	Set varDoc = GenVariableDoc(content, includePrivate)
+	document.Add "Todo", GetTodoList(content)
+	document.Add "Classes", GetClassDef(content, includePrivate)
+	document.Add "Procedures", GetMethodDef(content, includePrivate)
+	document.Add "Constants", GetConstDef(content, includePrivate)
+	document.Add "Variables", GetVariableDef(content, includePrivate)
 
 	' process file-global doc comments
-	fileDoc = ""
-	Set reDocComment = CompileRegExp("^[ \t]*('!.*)", True, True)
+	globalComments = ""
 	For Each line In Split(content, vbLf)
-		If reDocComment.Test(line) Then fileDoc = fileDoc & reDocComment.Replace(line, "$1") & vbLf
+		If reDocComment.Test(line) Then globalComments = globalComments & reDocComment.Replace(line, "$1") & vbLf
 	Next
-	Set tags = ProcessComments(fileDoc)
+	document.Add "Metadata", ProcessComments(globalComments)
 
 	CheckRemainingCode content
 
-	docName = fso.BuildPath(outDir, "index.html")
-	Set outFile = fso.OpenTextFile(docName, ForWriting, True)
-
-	WriteHeader outFile, fso.GetFileName(filename), stylesheet
-
-	outFile.WriteLine "<h1>" & fso.GetFileName(filename) & "</h1>"
-	outFile.Write GenDetailsInfo(tags)
-	outFile.Write GenVersionInfo(tags)
-	outFile.Write GenAuthorInfo(tags)
-	outFile.Write GenReferencesInfo(tags)
-
-	' Write ToDo list.
-	If UBound(todoList) > -1 Then
-		outFile.WriteLine "<h2>ToDo List</h2>" & vbNewLine & "<ul>"
-		For Each entry In todoList
-			outFile.WriteLine "  <li>" & EncodeHTMLEntities(entry) & "</li>"
-		Next
-		outFile.WriteLine "</ul>"
-	End If
-
-	WriteSection outFile, "Global Constant Summary", constDoc("summary")
-	WriteSection outFile, "Global Variable Summary", varDoc("summary")
-	WriteSection outFile, "Classes Summary", classInfo
-	WriteSection outFile, "Global Procedure Summary", procDoc("summary")
-	WriteSection outFile, "Global Constant Detail", constDoc("details")
-	WriteSection outFile, "Global Variable Detail", varDoc("details")
-	WriteSection outFile, "Global Procedure Detail", procDoc("details")
-
-	WriteFooter outFile
-	outFile.Close
-
-	' Return documentation file name without the leading docRoot directory.
-	GenFileDoc = Replace(docName, docRoot & "\", "", 1, 1)
+	Set GetFileDef = document
 End Function
 
-'! Generate a todo list from the @todo tags in the code.
+'! Get a list of todo items. The list is generated from the @todo tags in the
+'! code.
 '!
 '! @param  code   code fragment to check for @todo items.
 '! @return A list with the todo items from the code.
-Private Function GenTodoList(ByRef code)
+Private Function GetTodoList(ByRef code)
 	Dim list, m, line
+
+	log.LogDebug "GetTodoList(" & TypeName(code) & ")"
 
 	list = Array()
 
@@ -301,134 +362,122 @@ Private Function GenTodoList(ByRef code)
 	Next
 	code = reTodo.Replace(code, "")
 
-	GenTodoList = list
+	GetTodoList = list
 End Function
 
-'! Generate documentation for the give class code. Write it to a file named
-'! after the class in the given directory.
+'! Extract definitions of classes from the given code fragment.
 '!
 '! @param  code           Code fragment containing the class implementation.
-'! @param  dir            Directory to write the class documentation to.
-'! @param  stylesheet     Relative path to the stylesheet for the HTML files.
 '! @param  includePrivate Include private members/methods in the documentation.
-'! @return Dictionary with summary and detail documentation.
-Private Function GenClassDoc(ByRef code, ByVal dir, ByVal stylesheet, ByVal includePrivate)
-	Dim m, outFile, tags, classBody
-	Dim ctorDtorDoc, propertyDoc, methodDoc, fieldDoc
+'! @return Dictionary of dictionaries describing the class(es). The keys of
+'!         the main dictionary are the names of the classes, which point to
+'!         sub-dictionaries containing the definition data.
+Private Function GetClassDef(ByRef code, ByVal includePrivate)
+	Dim m, classBody, d
 
-	Dim classes : classes = Array()
+	log.LogDebug "GetClassDef(" & TypeName(code) & ", " & TypeName(includePrivate) & ")"
+
+	Dim classes : Set classes = CreateObject("Scripting.Dictionary")
 
 	For Each m In reClass.Execute(code)
 		With m.SubMatches
-			ReDim Preserve classes(UBound(classes)+1)
-			Set outFile = fso.OpenTextFile(fso.BuildPath(dir, .Item(3) & ".html"), ForWriting, True)
-			Set tags = ProcessComments(.Item(1))
-			classes(UBound(classes)) = Array(.Item(3), "")
-			If tags.Exists("@brief") Then
-				classes(UBound(classes))(1) = tags("@brief")
-			Else
-				If Not beQuiet Then log.LogWarning "No description for class " & .Item(3) & " found."
-			End If
-
 			classBody = .Item(4)
-			Set ctorDtorDoc = GenCtorDtorDoc(classBody, includePrivate)
-			Set propertyDoc = GenPropertyDoc(classBody)
-			Set methodDoc = GenMethodDoc(classBody, includePrivate)
-			Set fieldDoc = GenVariableDoc(classBody, includePrivate)
 
-			WriteHeader outFile, .Item(3), stylesheet
+			Set d = CreateObject("Scripting.Dictionary")
+			d.Add "Metadata", ProcessComments(.Item(1))
+			d.Add "Constructor", GetCtorDtorDef(classBody, includePrivate, True)
+			d.Add "Destructor", GetCtorDtorDef(classBody, includePrivate, False)
+			d.Add "Properties", GetPropertyDef(classBody)
+			d.Add "Methods", GetMethodDef(classBody, includePrivate)
+			d.Add "Fields", GetVariableDef(classBody, includePrivate)
 
-			' Write global class information.
-			outFile.WriteLine "<h1>Class " & .Item(3) & "</h1>"
-			outFile.Write GenDetailsInfo(tags)
-			outFile.Write GenVersionInfo(tags)
-			outFile.Write GenAuthorInfo(tags)
-			outFile.Write GenReferencesInfo(tags)
-
-			' Write summaries of fields, properties, ctor/dtor and methods.
-			WriteSection outFile, "Field Summary", fieldDoc("summary")
-			WriteSection outFile, "Property Summary", propertyDoc("summary")
-			WriteSection outFile, "Constructor/Destructor Summary", ctorDtorDoc("summary")
-			WriteSection outFile, "Method Summary", methodDoc("summary")
-
-			' Write details for fields, properties, ctor/dtor and methods.
-			WriteSection outFile, "Field Detail", fieldDoc("details")
-			WriteSection outFile, "Property Detail", propertyDoc("details")
-			WriteSection outFile, "Constructor/Destructor Detail", ctorDtorDoc("details")
-			WriteSection outFile, "Method Detail", methodDoc("details")
-
-			WriteFooter outFile
-
-			outFile.Close
+			classes.Add .Item(3), d
 		End With
 	Next
 	code = reClass.Replace(code, vbLf)
 
-	GenClassDoc = classes
+	Set GetClassDef = classes
 End Function
 
-'! Generate Constructor and Destructor documentation.
+'! Extract definitions of constructor or destructor from the given code
+'! fragment.
 '!
-'! @param  code           Code fragment containing constructor and/or destructor.
-'! @param  includePrivate Create documentation for private constructor or
+'! @param  code           Code fragment containing constructor/destructor.
+'! @param  includePrivate Include definition of private constructor or
 '!                        destructor as well.
-'! @return Dictionary with summary and detail documentation.
-Private Function GenCtorDtorDoc(ByRef code, ByVal includePrivate)
-	Dim m, visibility, tags
+'! @param  returnCtor     If true, the function will return the constructor
+'!                        definition, otherwise the destructor definition.
+'! @return Dictionary describing constructor or destructor.
+Private Function GetCtorDtorDef(ByRef code, ByVal includePrivate, ByVal returnCtor)
+	Dim re, descr, m, isPrivate, tags, methodRedefined
 
-	Dim summary : summary = Array()
-	Dim details : details = Array()
+	log.LogDebug "GetCtorDtorDef(" & TypeName(code) & ", " & TypeName(includePrivate) & ", " & TypeName(returnCtor) & ")"
 
-	For Each m In reCtor.Execute(code)
+	Dim method : Set method = CreateObject("Scripting.Dictionary")
+
+	If returnCtor Then
+		Set re = reCtor
+		descr = "constructor"
+	Else
+		Set re = reDtor
+		descr = "destructor"
+	End If
+
+	For Each m In re.Execute(code)
 		With m.SubMatches
-			visibility = GetVisibility(.Item(4))
-			If visibility = "Public" Or includePrivate Then
+			isPrivate = CheckIfPrivate(.Item(4))
+			If Not isPrivate Or includePrivate Then
 				Set tags = ProcessComments(.Item(1))
 				CheckConsistency .Item(5), Array(), tags, "sub"
-				ReDim Preserve summary(UBound(summary)+1)
-				summary(UBound(summary)) = GenMethodSummary(.Item(5), Array(), tags)
-				ReDim Preserve details(UBound(details)+1)
-				details(UBound(details)) = GenMethodDetails(.Item(5), visibility, Array(), tags)
+
+				On Error Resume Next
+				method.Add "Parameters", Array()
+				method.Add "IsPrivate", isPrivate
+				method.Add "Metadata", tags
+				If Err.Number <> 0 Then
+					If Err.Number = 457 Then
+						' key is already present in dictionary
+						methodRedefined = True
+						' overwrite previous definition data ("last match wins")
+						' no need to overwrite "Parameters", though, because those are
+						' always [] for constructor as well as destructor
+						method("IsPrivate") = isPrivate
+						Set method("Metadata") = tags
+					Else
+						log.LogError "Error storing " & descr & " data: " & FormatErrorMessage(Err)
+					End If
+				End If
+				On Error Goto 0
 			End If
 		End With
 	Next
-	code = reCtor.Replace(code, vbLf)
+	code = re.Replace(code, vbLf)
 
-	For Each m In reDtor.Execute(code)
-		With m.SubMatches
-			visibility = GetVisibility(.Item(4))
-			If visibility = "Public" Or includePrivate Then
-				Set tags = ProcessComments(.Item(1))
-				CheckConsistency .Item(5), Array(), tags, "sub"
-				ReDim Preserve summary(UBound(summary)+1)
-				summary(UBound(summary)) = GenMethodSummary(.Item(5), Array(), tags)
-				ReDim Preserve details(UBound(details)+1)
-				details(UBound(details)) = GenMethodDetails(.Item(5), visibility, Array(), tags)
-			End If
-		End With
-	Next
-	code = reDtor.Replace(code, vbLf)
+	If methodRedefined And Not beQuiet Then log.LogWarning "Multiple " & descr _
+		& " definitions. Using the last one."
 
-	Set GenCtorDtorDoc = CreateObject("Scripting.Dictionary")
-	GenCtorDtorDoc.Add "summary", Join(summary, "<hr/>" & vbNewLine)
-	GenCtorDtorDoc.Add "details", Join(details, "<hr/>" & vbNewLine)
+	Set GetCtorDtorDef = method
 End Function
 
-'! Generate documentation for class methods or global procedures.
+'! Extract definitions of class methods and global procedures from the given
+'! code fragment.
 '!
 '! @param  code           Code fragment containing the methods/procedures.
-'! @param  includePrivate Create documentation for private methods as well.
-'! @return Dictionary with summary and detail documentation.
-Private Function GenMethodDoc(ByRef code, ByVal includePrivate)
-	Dim m, visibility, params, tags
+'! @param  includePrivate Include definitions of private methods as well.
+'! @return Dictionary of dictionaries describing the methods. The keys of
+'!         the main dictionary are the names of the methods, which point to
+'!         sub-dictionaries containing the definition data.
+Private Function GetMethodDef(ByRef code, ByVal includePrivate)
+	Dim m, isPrivate, params, tags, d
 
-	Dim summary : summary = Array()
-	Dim details : details = Array()
+	log.LogDebug "GetMethodDef(" & TypeName(code) & ", " & TypeName(includePrivate) & ")"
+
+	Dim methods : Set methods = CreateObject("Scripting.Dictionary")
 
 	For Each m In reMethod.Execute(code)
 		With m.SubMatches
-			visibility = GetVisibility(.Item(4))
-			If visibility = "Public" Or includePrivate Then
+			isPrivate = CheckIfPrivate(.Item(4))
+			If Not isPrivate Or includePrivate Then
 				If Len(.Item(7)) > 0 Then
 					params = Mid(.Item(7), 2, Len(.Item(7))-2)  ' remove enclosing parentheses
 				Else
@@ -442,37 +491,41 @@ Private Function GenMethodDoc(ByRef code, ByVal includePrivate)
 				Set tags = ProcessComments(.Item(1))
 				CheckConsistency .Item(6), params, tags, .Item(5)
 
-				ReDim Preserve summary(UBound(summary)+1)
-				summary(UBound(summary)) = GenMethodSummary(.Item(6), params, tags)
-				ReDim Preserve details(UBound(details)+1)
-				details(UBound(details)) = GenMethodDetails(.Item(6), visibility, params, tags)
+				Set d = CreateObject("Scripting.Dictionary")
+				d.Add "Parameters", params
+				d.Add "IsPrivate", isPrivate
+				d.Add "Metadata", tags
+
+				methods.Add .Item(6), d
 			End If
 		End With
 	Next
 	code = reMethod.Replace(code, vbLf)
 
-	Set GenMethodDoc = CreateObject("Scripting.Dictionary")
-	GenMethodDoc.Add "summary", Join(summary, "<hr/>" & vbNewLine)
-	GenMethodDoc.Add "details", Join(details, "<hr/>" & vbNewLine)
+	Set GetMethodDef = methods
 End Function
 
-'! Generate documentation for class properties.
+'! Extract definitons of class properties. Private getter and setter methods
+'! are disregarded, because even with the method present, the property would
+'! not be readable/writable from an interface point of view.
 '!
 '! @param  code   Code fragment containing class properties.
 '! @return Dictionary with summary and detail documentation.
-Private Function GenPropertyDoc(ByRef code)
-	Dim m, prop
+'! @return Dictionary of dictionaries describing the properties. The keys of
+'!         the main dictionary are the names of the properties, which point to
+'!         sub-dictionaries containing the definition data.
+Private Function GetPropertyDef(ByRef code)
+	Dim m, name, d
 
-	Dim summary : summary = Array()
-	Dim details : details = Array()
+	log.LogDebug "GetPropertyDef(" & TypeName(code) & ")"
 
-	Dim readable  : Set readable = CreateObject("Scripting.Dictionary")
-	Dim writable  : Set writable = CreateObject("Scripting.Dictionary")
-	Dim readwrite : Set readwrite = CreateObject("Scripting.Dictionary")
+	Dim properties : Set properties = CreateObject("Scripting.Dictionary")
+	Dim readable   : Set readable = CreateObject("Scripting.Dictionary")
+	Dim writable   : Set writable = CreateObject("Scripting.Dictionary")
 
 	For Each m In reProperty.Execute(code)
 		With m.SubMatches
-			If GetVisibility(.Item(4)) = "Public" Then
+			If Not CheckIfPrivate(.Item(4)) Then
 				' Private getter and setter methods are disregarded, because even with
 				' the method present, the property is not readable/writable from an
 				' interface point of view.
@@ -488,41 +541,55 @@ Private Function GenPropertyDoc(ByRef code)
 	Next
 	code = reProperty.Replace(code, vbLf)
 
-	' Move properties that are both read- and writable to another dictionary.
-	' That way we'll have separate dictionaries for read-only properties,
-	' write-only properties, and read-write properties.
-	For Each prop In readable.Keys
-		If writable.Exists(prop) Then
-			readwrite.Add prop, readable(prop) & writable(prop)
-			readable.Remove(prop)
-			writable.Remove(prop)
+	' Add readable properties to the result dictionary. Set writable status
+	' according to the property name's presence in the "writable" dictionary
+	' and remove matching properties from the latter dictionary.
+	For Each name In readable.Keys
+		Set d = CreateObject("Scripting.Dictionary")
+		d.Add "Readable", True
+		If writable.Exists(name) Then
+			d.Add "Writable", True
+			d.Add "Metadata", ProcessComments(readable(name) & writable(name))
+			writable.Remove(name)
+		Else
+			d.Add "Writable", False
+			d.Add "Metadata", ProcessComments(readable(name))
 		End If
+		properties.Add name, d
 	Next
 
-	GenPropertyInfo readable, "read-only", summary, details
-	GenPropertyInfo writable, "write-only", summary, details
-	GenPropertyInfo readwrite, "read-write", summary, details
+	' At this point the "writable" dictionary contains only properties that are
+	' not present in the "readable" dictionary, so we can process those as
+	' write-only properties.
+	For Each name In writable.Keys
+		Set d = CreateObject("Scripting.Dictionary")
+		d.Add "Readable", False
+		d.Add "Writable", True
+		d.Add "Metadata", ProcessComments(writable(name))
+		properties.Add name, d
+	Next
 
-	Set GenPropertyDoc = CreateObject("Scripting.Dictionary")
-	GenPropertyDoc.Add "summary", Join(summary, "<hr/>" & vbNewLine)
-	GenPropertyDoc.Add "details", Join(details, "<hr/>" & vbNewLine)
+	Set GetPropertyDef = properties
 End Function
 
-'! Generate documentation for variables.
+'! Extract definitions of variables from the given code fragment.
 '!
-'! @param  code   Code fragment containing variable declarations.
-'! @param  includePrivate Create documentation for private variables as well.
-'! @return Dictionary with summary and detail documentation.
-Private Function GenVariableDoc(ByRef code, ByVal includePrivate)
-	Dim m, visibility, tags, vars
+'! @param  code           Code fragment containing variable declarations.
+'! @param  includePrivate Include definitions of private variables as well.
+'! @return Dictionary of dictionaries describing the variables. The keys of
+'!         the main dictionary are the names of the variables, which point to
+'!         sub-dictionaries containing the definition data.
+Private Function GetVariableDef(ByRef code, ByVal includePrivate)
+	Dim m, isPrivate, tags, vars, name, d
 
-	Dim summary : summary = Array()
-	Dim details : details = Array()
+	log.LogDebug "GetVariableDef(" & TypeName(code) & ", " & TypeName(includePrivate) & ")"
+
+	Dim variables : Set variables = CreateObject("Scripting.Dictionary")
 
 	For Each m In reVar.Execute(code)
 		With m.SubMatches
-			visibility = GetVisibility(.Item(3))
-			If visibility = "Public" Or includePrivate Then
+			isPrivate = CheckIfPrivate(.Item(3))
+			If Not isPrivate Or includePrivate Then
 				Set tags = ProcessComments(.Item(1))
 				vars = .Item(4)
 				' If the match contains a declaration/definition combination: remove the
@@ -530,49 +597,55 @@ Private Function GenVariableDoc(ByRef code, ByVal includePrivate)
 				If Left(.Item(8), 1) = ":" Then vars = Trim(Split(vars, ":")(0))
 				CheckIdentifierTags vars, tags
 				vars = Split(Replace(Replace(vars, vbTab, ""), " ", ""), ",")
-				ReDim Preserve summary(UBound(summary)+1)
-				summary(UBound(summary)) = GenVariableSummary(vars, tags)
-				ReDim Preserve details(UBound(details)+1)
-				details(UBound(details)) = GenVariableDetails(vars, visibility, tags)
+
+				Set d = CreateObject("Scripting.Dictionary")
+				d.Add "IsPrivate", isPrivate
+				d.Add "Metadata", tags
+
+				For Each name In vars
+					variables.Add name, d
+				Next
 			End If
 		End With
 	Next
 	code = reVar.Replace(code, vbLf)
 
-	Set GenVariableDoc = CreateObject("Scripting.Dictionary")
-	GenVariableDoc.Add "summary", Join(summary, "<hr/>" & vbNewLine)
-	GenVariableDoc.Add "details", Join(details, "<hr/>" & vbNewLine)
+	Set GetVariableDef = variables
 End Function
 
-'! Generate documentation for (global) constants.
+'! Extract definitions of (global) constants from the given code fragment.
 '!
-'! @param  code   Code fragment containing constant definitions.
-'! @param  includePrivate Create documentation for private constants as well.
-'! @return Dictionary with summary and detail documentation.
-Private Function GenConstDoc(ByRef code, ByVal includePrivate)
-	Dim m, visibility, tags
+'! @param  code           Code fragment containing constant definitions.
+'! @param  includePrivate Include definitions of private constants as well.
+'! @return Dictionariy of dictionaries describing the constants. The keys of
+'!         the main dictionary are the names of the constants, which point to
+'!         sub-dictionaries containing the definition data.
+Private Function GetConstDef(ByRef code, ByVal includePrivate)
+	Dim m, isPrivate, tags, d
 
-	Dim summary : summary = Array()
-	Dim details : details = Array()
+	log.LogDebug "GetConstDef(" & TypeName(code) & ", " & TypeName(includePrivate) & ")"
+
+	Dim constants : Set constants = CreateObject("Scripting.Dictionary")
 
 	For Each m In reConst.Execute(code)
 		With m.SubMatches
-			visibility = GetVisibility(.Item(4))
-			If visibility = "Public" Or includePrivate Then
+			isPrivate = CheckIfPrivate(.Item(4))
+			If Not isPrivate Or includePrivate Then
 				Set tags = ProcessComments(.Item(1))
 				CheckIdentifierTags .Item(5), tags
-				ReDim Preserve summary(UBound(summary)+1)
-				summary(UBound(summary)) = GenConstSummary(.Item(5), .Item(6), tags)
-				ReDim Preserve details(UBound(details)+1)
-				details(UBound(details)) = GenConstDetails(.Item(5), .Item(6), visibility, tags)
+
+				Set d = CreateObject("Scripting.Dictionary")
+				d.Add "Value", .Item(6)
+				d.Add "IsPrivate", isPrivate
+				d.Add "Metadata", tags
+
+				constants.Add .Item(5), d
 			End If
 		End With
 	Next
 	code = reConst.Replace(code, "")
 
-	Set GenConstDoc = CreateObject("Scripting.Dictionary")
-	GenConstDoc.Add "summary", Join(summary, "<hr/>" & vbNewLine)
-	GenConstDoc.Add "details", Join(details, "<hr/>" & vbNewLine)
+	Set GetConstDef = constants
 End Function
 
 '! Parse the given comment and return a dictionary with all present tags and
@@ -585,6 +658,8 @@ End Function
 '! @return Dictionary with tag/value pairs.
 Private Function ProcessComments(ByVal comments)
 	Dim line, re, myMatches, m, currentTag
+
+	log.LogDebug "ProcessComments(" & TypeName(comments) & ")"
 
 	Dim tags    : Set tags = CreateObject("Scripting.Dictionary")
 	Dim authors : authors = Array()
@@ -683,6 +758,182 @@ Private Function ProcessComments(ByVal comments)
 End Function
 
 ' ------------------------------------------------------------------------------
+' Document generation
+' ------------------------------------------------------------------------------
+
+'! Generate the documentation from the extracted data.
+'!
+'! @param  doc      Structure containing the documentation elements extracted
+'!                  from the source file(s).
+'! @param  docRoot  Root directory for the documentation files.
+'! @param  lang     Documentation language. All generated text that is not read
+'!                  from the source document(s) is created in this language.
+'! @param  title    Title of the documentation page when documentation for a
+'!                  single source file is generated. Must be Null otherwise.
+Sub GenDoc(doc, docRoot, lang, title)
+	Dim indexFile, relPath, re, css, filename, f, dir, entry, name, section, isFirst
+
+	log.LogDebug "GenDoc(" & TypeName(doc) & ", " & TypeName(docRoot) & ", " & TypeName(lang) & ", " & TypeName(title) & ")"
+
+	CreateDirectory docRoot
+	CreateStylesheet fso.BuildPath(docRoot, StylesheetName)
+
+	If IsNull(title) Then
+		log.LogDebug "Writing index file " & fsoBuildPath(docRoot, "index.html") & " ..."
+		Set indexFile = fso.OpenTextFile(fso.BuildPath(docRoot, "index.html"), ForWriting, True)
+		WriteHeader indexFile, "Main Page", StylesheetName
+		If projectName <> "" Then indexFile.WriteLine "<h1>" & projectName & "</h1>"
+
+		For Each relPath In Sort(doc.Keys)
+			indexFile.WriteLine "<p><a href=""" & relPath & "/index.html"">" & relPath & ".vbs</a></p>"
+		Next
+
+		WriteFooter indexFile
+		indexFile.Close
+	End If
+
+	Set re = CompileRegExp("[^\\]+\\", True, True)
+
+	For Each relPath In doc.Keys
+		css = re.Replace(fso.BuildPath(relPath, StylesheetName), "../")
+		dir = fso.BuildPath(docRoot, relPath)
+		CreateDirectory dir
+
+		log.LogDebug "Writing script documentation file " & fso.BuildPath(dir, "index.html") & " ..."
+		Set f = fso.OpenTextFile(fso.BuildPath(dir, "index.html"), ForWriting, True)
+		WriteHeader f, fso.GetFileName(relPath), css
+
+		If IsNull(title) Then
+			f.WriteLine "<h1>" & fso.GetFileName(relPath) & "</h1>"
+		Else
+			f.WriteLine "<h1>" & title & "</h1>"
+		End If
+
+		With doc(relPath)
+			f.Write GenDetailsInfo(.Item("Metadata"))
+			f.Write GenVersionInfo(.Item("Metadata"), lang)
+			f.Write GenAuthorInfo(.Item("Metadata"), lang)
+			f.Write GenReferencesInfo(.Item("Metadata"), lang)
+
+			' Write ToDo list.
+			If UBound(.Item("Todo")) > -1 Then
+				f.WriteLine "<h2>" & EncodeHTMLEntities(localize(lang)("TODO")) & "</h2>" & vbNewLine & "<ul>"
+				For Each entry In .Item("Todo")
+					f.WriteLine "  <li>" & EncodeHTMLEntities(entry) & "</li>"
+				Next
+				f.WriteLine "</ul>"
+			End If
+
+			WriteSection f, localize(lang)("CONST_SUMMARY"), .Item("Constants"), lang, "Constant", True
+			WriteSection f, localize(lang)("VAR_SUMMARY"), .Item("Variables"), lang, "Variable", True
+
+			' Write class summary information.
+			If .Item("Classes").Count > 0 Then
+				f.WriteLine "<h2>" & EncodeHTMLEntities(localize(lang)("CLASS_SUMMARY")) & "</h2>"
+				isFirst = True
+				For Each entry In Sort(.Item("Classes").Keys)
+					If isFirst Then
+						isFirst = False
+					Else
+						f.WriteLine "<hr/>"
+					End If
+					f.WriteLine "<p><span class=""name""><a href=""" & EncodeHTMLEntities(entry) & ".html"">" _
+						& EncodeHTMLEntities(entry) & "</a></span></p>"
+					If .Item("Classes")(entry)("Metadata").Exists("@brief") Then f.WriteLine "<p class=""description"">" _
+						& EncodeHTMLEntities(.Item("Classes")(entry)("Metadata")("@brief")) & "</p>"
+				Next
+			End If
+
+			WriteSection f, localize(lang)("PROC_SUMMARY"), .Item("Procedures"), lang, "Procedure", True
+			WriteSection f, localize(lang)("CONST_DETAIL"), .Item("Constants"), lang, "Constant", False
+			WriteSection f, localize(lang)("VAR_DETAIL"), .Item("Variables"), lang, "Variable", False
+			WriteSection f, localize(lang)("PROC_DETAIL"), .Item("Procedures"), lang, "Procedure", False
+		End With
+
+		WriteFooter f
+		f.Close
+
+		For Each name In doc(relPath)("Classes").Keys
+			log.LogDebug "Writing class documentation file " & fso.BuildPath(dir, name & ".html") & " ..."
+			Set f = fso.OpenTextFile(fso.BuildPath(dir, name & ".html"), ForWriting, True)
+			WriteHeader f, EncodeHTMLEntities(name), css
+
+			With doc(relPath)("Classes")(name)
+				f.WriteLine "<h1>" & EncodeHTMLEntities(localize(lang)("CLASS") & " " & name) & "</h1>"
+				f.Write GenDetailsInfo(.Item("Metadata"))
+				f.Write GenVersionInfo(.Item("Metadata"), lang)
+				f.Write GenAuthorInfo(.Item("Metadata"), lang)
+				f.Write GenReferencesInfo(.Item("Metadata"), lang)
+
+				WriteSection f, localize(lang)("PROP_SUMMARY"), .Item("Properties"), lang, "Property", True
+				section = ""
+				If .Item("Constructor").Count > 0 Then section = GenSummary("Class_Initialize", .Item("Constructor"), "Procedure")
+				If .Item("Destructor").Count > 0 Then
+					If section <> "" Then section = section & vbNewLine & "<hr/>" & vbNewLine
+					section = section & GenSummary("Class_Terminate", .Item("Destructor"), "Procedure")
+				End If
+				If section <> "" Then f.WriteLine "<h2>" & EncodeHTMLEntities(localize(lang)("CTORDTOR_SUMMARY")) _
+					& "</h2>" & vbNewLine & section
+				WriteSection f, localize(lang)("METHOD_SUMMARY"), .Item("Methods"), lang, "Procedure", True
+
+				WriteSection f, localize(lang)("PROP_DETAIL"), .Item("Properties"), lang, "Property", False
+				section = ""
+				If .Item("Constructor").Count > 0 Then section = GenDetails("Class_Initialize", .Item("Constructor"), lang, "Procedure")
+				If .Item("Destructor").Count > 0 Then
+					If section <> "" Then section = section & vbNewLine & "<hr/>" & vbNewLine
+					section = section & GenDetails("Class_Terminate", .Item("Destructor"), lang, "Procedure")
+				End If
+				If section <> "" Then f.WriteLine "<h2>" & EncodeHTMLEntities(localize(lang)("CTORDTOR_DETAIL")) _
+					& "</h2>" & vbNewLine & section
+				WriteSection f, localize(lang)("METHOD_DETAIL"), .Item("Methods"), lang, "Procedure", False
+			End With
+
+			WriteFooter f
+			f.Close
+		Next
+	Next
+End Sub
+
+'! Write the given heading and data to the given file. The heading omitted in
+'! case it's Null, otherwise it is written as <h2>. The data is processed into
+'! summary or detail information, depending on presence (or absence) of the
+'! word "summary" in the heading.
+'!
+'! @param  file         Filehandle to write to.
+'! @param  heading      The heading for the given section.
+'! @param  data         Data (sub-)structure containing the elements of the
+'!                      section.
+'! @param  lang         Documentation language. All generated text that is not
+'!                      read from the source document(s) is created in this
+'!                      language.
+'! @param  sectionType  The type of the section to be written (constant,
+'!                      method, property, or variable)
+'! @param  isSummary    If True, a summary section is generated, otherwise a
+'!                      detail section.
+Private Sub WriteSection(file, heading, data, lang, sectionType, isSummary)
+	Dim name, isFirst
+
+	log.LogDebug "WriteSection(" & TypeName(file) & ", " & TypeName(heading) & ", " & TypeName(data) & ", " & TypeName(lang) & ", " & TypeName(sectionType) & ", " & TypeName(isSummary) & ")"
+
+	If data.Count > 0 Then
+		If Not IsNull(heading) Then file.WriteLine "<h2>" & EncodeHTMLEntities(heading) & "</h2>" & vbNewLine
+		isFirst = True
+		For Each name In Sort(data.Keys)
+			If isFirst Then
+				isFirst = False
+			Else
+				file.WriteLine "<hr/>"
+			End If
+			If isSummary Then
+				file.WriteLine GenSummary(name, data(name), sectionType)
+			Else
+				file.WriteLine GenDetails(name, data(name), lang, sectionType)
+			End If
+		Next
+	End If
+End Sub
+
+' ------------------------------------------------------------------------------
 ' HTML code generation
 ' ------------------------------------------------------------------------------
 
@@ -693,6 +944,10 @@ End Function
 '! @param  title      Title of the HTML page
 '! @param  stylesheet Path to the stylesheet for the HTML page.
 Private Sub WriteHeader(outFile, title, stylesheet)
+	log.LogDebug "WriteHeader(" & TypeName(outFile) & ", " & TypeName(title) & ", " & TypeName(stylesheet) & ")"
+	log.LogDebug "title:      " & title
+	log.LogDebug "stylesheet: " & stylesheet
+
 	If projectName <> "" Then title = projectName & ": " & title
 	outFile.WriteLine "<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Frameset//EN""" & vbNewLine _
 		& vbTab & """http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd"">" & vbNewLine _
@@ -712,186 +967,125 @@ Private Sub WriteFooter(outFile)
 	outFile.WriteLine "</body>" & vbNewLine & "</html>"
 End Sub
 
-'! Generate documentation for class properties.
-'!
-'! @param  properties    A dictionary with name/comment pairs of properties.
-'! @param  accessibility The accessibility (read-only/write-only/read-write) of
-'!                       the properties.
-'! @param  summary       Reference to an array that will receive the summary
-'!                       documentation for the properties.
-'! @param  details       Reference to an array that will receive the detail
-'!                       documentation for the properties.
-Private Sub GenPropertyInfo(ByVal properties, ByVal accessibility, ByRef summary, ByRef details)
-	Dim name, tags
-
-	For Each name In properties.Keys
-		Set tags = ProcessComments(properties(name))
-		ReDim Preserve summary(UBound(summary)+1)
-		summary(UBound(summary)) = GenPropertySummary(name, accessibility, tags)
-		ReDim Preserve details(UBound(details)+1)
-		details(UBound(details)) = GenPropertyDetails(name, accessibility, tags)
-	Next
-End Sub
-
-'! Generate summary documentation for a class property. The documentation is
-'! generated in HTML format.
-'!
-'! @param  name          Name of the property.
-'! @param  accessibility The accessibility (read-only/write-only/read-write) of
-'!                       the properties.
-'! @param  tags          Dictionary with the tag/value pairs from the
-'!                       documentation header.
-'! @return The summary documentation in HTML format.
-Private Function GenPropertySummary(ByVal name, ByVal accessibility, ByVal tags)
-	Dim signature
-
-	name = EncodeHTMLEntities(name)
-	signature = "<span class=""name""><a href=""#" & LCase(name) & """>" & name & "</a></span>"
-	GenPropertySummary = GenSummary(signature, tags)
-End Function
-
-'! Generate summary documentation for a class methods or (global) procedure.
-'! The documentation is generated in HTML format.
-'!
-'! @param  name   Name of the method/procedure.
-'! @param  params Array with the parameter names of the method/procedure.
-'! @param  tags   Dictionary with the tag/value pairs from the documentation
-'!                header.
-'! @return The summary documentation in HTML format.
-Private Function GenMethodSummary(ByVal name, ByVal params, ByVal tags)
-	Dim signature
-
-	name = EncodeHTMLEntities(name)
-	params = EncodeHTMLEntities(Join(params, ", "))
-	signature = "<span class=""name""><a href=""#" & LCase(name) & "(" & LCase(Replace(params, " ", "")) _
-		& ")"">" & name & "</a></span>(" & params & ")"
-	GenMethodSummary = GenSummary(signature, tags)
-End Function
-
-'! Generate summary documentation for variables. All variables passed to this
-'! function were declared in one list (Dim a, b, ...) and had thus the same
-'! documentation header. The documentation is generated in HTML format.
-'!
-'! @param  vars   Array with the names of the variables.
-'! @param  tags   Dictionary with the tag/value pairs from the documentation
-'!                header.
-'! @return The summary documentation in HTML format.
-Private Function GenVariableSummary(ByVal vars, ByVal tags)
-	Dim i, name, signature
-	ReDim summary(UBound(vars))
-
-	For i = LBound(vars) To UBound(vars)
-		name = EncodeHTMLEntities(vars(i))
-		signature = "<span class=""name""><a href=""#" & LCase(name) & """>" & name & "</a></span>"
-		summary(i) = GenSummary(signature, tags)
-	Next
-	GenVariableSummary = Join(summary, "<hr/>" & vbNewLine)
-End Function
-
-'! Generate summary documentation for a constant. The documentation is
-'! generated in HTML format.
-'!
-'! @param  name   Name of the constant.
-'! @param  value  Value of the constant.
-'! @param  tags   Dictionary with the tag/value pairs from the documentation
-'!                header.
-'! @return The summary documentation in HTML format.
-Private Function GenConstSummary(ByVal name, ByVal value, ByVal tags)
-	Dim signature
-
-	name = EncodeHTMLEntities(name)
-	signature = "<span class=""name""><a href=""#" & LCase(name) & """>" & name & "</a></span>: " & Trim(value)
-	GenConstSummary = GenSummary(signature, tags)
-End Function
-
-'! Generate detail documentation for a class property. The documentation is
-'! generated in HTML format.
-'!
-'! @param  name          Name of the property.
-'! @param  accessibility The accessibility (read-only/write-only/read-write) of
-'!                       the properties.
-'! @param  tags          Dictionary with the tag/value pairs from the
-'!                       documentation header.
-'! @return The detail documentation in HTML format.
-Private Function GenPropertyDetails(ByVal name, ByVal accessibility, ByVal tags)
-	Dim heading, signature
-
-	name = EncodeHTMLEntities(name)
-	heading = "<a name=""" & LCase(name) & """></a>" & name
-	signature = "<span class=""name"">" & name & "</span> (" & accessibility & ")"
-	GenPropertyDetails = GenDetailsHeading(heading, signature) _
-		& GenDetailsInfo(tags) _
-		& GenExceptionInfo(tags) _
-		& GenReferencesInfo(tags)
-End Function
-
-'! Generate detail documentation for a class methods or (global) procedure.
-'! The documentation is generated in HTML format.
-'!
-'! @param  name       Name of the method/procedure.
-'! @param  visibility visibility (Private/Public) of the method.
-'! @param  params     Array with the parameter names of the method/procedure.
-'! @param  tags       Dictionary with the tag/value pairs from the
-'!                    documentation header.
-'! @return The detail documentation in HTML format.
-Private Function GenMethodDetails(ByVal name, ByVal visibility, ByVal params, ByVal tags)
-	Dim heading, signature
-
-	name = EncodeHTMLEntities(name)
-	params = EncodeHTMLEntities(Join(params, ", "))
-	heading = "<a name=""" & LCase(name) & "(" & LCase(Replace(params, " ", "")) & ")""></a>" & name
-	signature = visibility & " <span class=""name"">" & name & "</span>(" & params & ")"
-	GenMethodDetails = GenDetailsHeading(heading, signature) _
-		& GenDetailsInfo(tags) _
-		& GenParameterInfo(tags) _
-		& GenReturnValueInfo(tags) _
-		& GenExceptionInfo(tags) _
-		& GenReferencesInfo(tags)
-End Function
-
-'! Generate detail documentation for variables. All variables passed to this
-'! function were declared in one list (Dim a, b, ...) and had thus the same
-'! documentation header and visibility. The documentation is generated in HTML
+'! Generate summary documentation. The documentation is generated in HTML
 '! format.
 '!
-'! @param  vars       Array with the names of the variables.
-'! @param  visibility visibility (Private/Public) of the variables.
-'! @param  tags       Dictionary with the tag/value pairs from the
-'!                    documentation header.
-'! @return The detail documentation in HTML format.
-Private Function GenVariableDetails(ByVal vars, ByVal visibility, ByVal tags)
-	Dim description, references, i, name, heading, signature
-	ReDim details(UBound(vars))
+'! @param  name         Name of the processed element.
+'! @param  properties   Dictionary with the properties of the processed
+'!                      element.
+'! @param elementType   The type of the processed element (constant, method,
+'!                      property, or variable)
+'! @return The summary documentation in HTML format.
+Private Function GenSummary(ByVal name, ByVal properties, ByVal elementType)
+	Dim signature, params
 
-	description = GenDetailsInfo(tags)
-	references = GenReferencesInfo(tags)
-
-	For i = LBound(vars) To UBound(vars)
-		name = EncodeHTMLEntities(vars(i))
-		heading = "<a name=""" & LCase(name) & """></a>" & name
-		signature = visibility & " <span class=""name"">" & name & "</span>"
-		details(i) = GenDetailsHeading(heading, signature) & description & references
-	Next
-
-	GenVariableDetails = Join(details, "<hr/>" & vbNewLine)
-End Function
-
-'! Generate detail documentation for a constant. The documentation is generated
-'! in HTML format.
-'!
-'! @param  name       Name of the constant.
-'! @param  value      Value of the constant.
-'! @param  visibility visibility (Private/Public) of the variables.
-'! @param  tags       Dictionary with the tag/value pairs from the
-'!                    documentation header.
-'! @return The detail documentation in HTML format.
-Private Function GenConstDetails(ByVal name, ByVal value, ByVal visibility, ByVal tags)
-	Dim heading, signature
+	log.LogDebug "GenSummary(" & TypeName(name) & ", " & TypeName(properties) & ", " & TypeName(elementType) & ")"
+	log.LogDebug "name:        " & name
+	log.LogDebug "properties:  " & Join(properties.Keys, ", ")
+	log.LogDebug "elementType: " & elementType
 
 	name = EncodeHTMLEntities(name)
-	heading = "<a name=""" & LCase(name) & """></a>" & name
-	signature = visibility & " Const <span class=""name"">" & name & "</span> = " & Trim(value)
-	GenConstDetails = GenDetailsHeading(heading, signature) & GenDetailsInfo(tags) & GenReferencesInfo(tags)
+
+	Select Case LCase(elementType)
+	Case "constant"
+		signature = "<span class=""name""><a href=""#" & LCase(name) & """>" & name & "</a></span>: " _
+			& Trim(properties("Value"))
+		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
+	Case "procedure"
+		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
+		signature = "<span class=""name""><a href=""#" & LCase(name) & "(" & LCase(Replace(params, " ", "")) _
+			& ")"">" & name & "</a></span>(" & params & ")"
+		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
+	Case "property"
+		signature = "<span class=""name""><a href=""#" & LCase(name) & """>" & name & "</a></span>"
+		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
+	Case "variable"
+		signature = "<span class=""name""><a href=""#" & LCase(name) & """>" & name & "</a></span>"
+		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
+	Case Else
+		log.LogError "Cannot generate summary information for unknown element type " & elementType & "."
+	End Select
+End Function
+
+'! Generate detail documentation. The documentation is generated in HTML
+'! format.
+'!
+'! @param  name         Name of the processed element.
+'! @param  properties   Dictionary with the properties of the processed
+'!                      element.
+'! @param  lang         Documentation language. All generated text that is not
+'!                      read from the source document(s) is created in this
+'!                      language.
+'! @param elementType   The type of the processed element (constant, method,
+'!                      property, or variable)
+'! @return The detail documentation in HTML format.
+Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elementType)
+	Dim heading, signature, params, visibility, accessibility
+
+	log.LogDebug "GenDetails(" & TypeName(name) & ", " & TypeName(properties) & ", " & TypeName(lang) & ", " & TypeName(elementType) & ")"
+	log.LogDebug "name:        " & name
+	log.LogDebug "properties:  " & Join(properties.Keys, ", ")
+	log.LogDebug "lang:        " & lang
+	log.LogDebug "elementType: " & elementType
+
+	GenDetails = ""
+
+	name = EncodeHTMLEntities(name)
+
+	If LCase(elementType) = "procedure" Then
+		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
+		heading = "<a name=""" & LCase(name) & "(" & LCase(Replace(params, " ", "")) & ")""></a>" & name
+	Else
+		heading = "<a name=""" & LCase(name) & """></a>" & name
+	End If
+
+	If properties("IsPrivate") Then
+		visibility = "Private"
+	Else
+		visibility = "Public"
+	End If
+
+	Select Case LCase(elementType)
+	Case "constant"
+		signature = visibility & " Const <span class=""name"">" & name & "</span> = " & Trim(properties("Value"))
+		GenDetails = GenDetailsHeading(heading, signature) _
+			& GenDetailsInfo(properties("Metadata")) _
+			& GenReferencesInfo(properties("Metadata"), lang)
+	Case "procedure"
+		signature = visibility & " <span class=""name"">" & name & "</span>(" & params & ")"
+		GenDetails = GenDetailsHeading(heading, signature) _
+			& GenDetailsInfo(properties("Metadata")) _
+			& GenParameterInfo(properties("Metadata"), lang) _
+			& GenReturnValueInfo(properties("Metadata"), lang) _
+			& GenExceptionInfo(properties("Metadata"), lang) _
+			& GenReferencesInfo(properties("Metadata"), lang)
+	Case "property"
+		If properties("Readable") Then
+			If properties("Writable") Then
+				accessibility = "read-write"
+			Else
+				accessibility = "read-only"
+			End If
+		Else
+			If properties("Writable") Then
+				accessibility = "write-only"
+			Else
+				log.LogError "Property " & name & " is neither readable nor writable. This should never happen, since this kind of property is ignored by the document parser."
+			End If
+		End If
+		signature = "<span class=""name"">" & name & "</span> (" & accessibility & ")"
+		GenDetails = GenDetailsHeading(heading, signature) _
+			& GenDetailsInfo(properties("Metadata")) _
+			& GenExceptionInfo(properties("Metadata"), lang) _
+			& GenReferencesInfo(properties("Metadata"), lang)
+	Case "variable"
+		signature = visibility & " <span class=""name"">" & name & "</span>"
+		GenDetails = GenDetailsHeading(heading, signature) _
+			& GenDetailsInfo(properties("Metadata")) _
+			& GenReferencesInfo(properties("Metadata"), lang)
+	Case Else
+		log.LogError "Cannot generate detail information for unknown element type " & elementType & "."
+	End Select
 End Function
 
 '! Generate author information from @author tags. Should the tag also contain
@@ -899,13 +1093,17 @@ End Function
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
+'! @param  lang     Documentation language. All generated text that is not read
+'!                  from the source document(s) is created in this language.
 '! @return HTML snippet with the author information.
-Private Function GenAuthorInfo(tags)
+Private Function GenAuthorInfo(tags, lang)
 	Dim re, author
 	Dim info : info = ""
 
+	log.LogDebug "GenAuthorInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+
 	If tags.Exists("@author") Then
-		info = "<h4>Author:</h4>" & vbNewLine
+		info = "<h4>" & EncodeHTMLEntities(localize(lang)("AUTHOR")) & ":</h4>" & vbNewLine
 		Set re = CompileRegExp("\S+@\S+", True, True)
 		For Each author In tags("@author")
 			If re.Test(author) Then
@@ -927,13 +1125,17 @@ End Function
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
 '! @return HTML snippet with the references information.
-Private Function GenReferencesInfo(tags)
+Private Function GenReferencesInfo(tags, lang)
 	Dim ref
 	Dim info : info = ""
 
+	log.LogDebug "GenReferencesInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+
 	If tags.Exists("@see") Then
-		info = "<h4>See Also:</h4>" & vbNewLine
+		info = "<h4>" & EncodeHTMLEntities(localize(lang)("SEE_ALSO")) & ":</h4>" & vbNewLine
 		For Each ref In tags("@see")
 			info = info & "<p class=""value"">" & CreateLink(ref, False) & "</p>" & vbNewLine
 		Next
@@ -947,17 +1149,40 @@ End Function
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
 '! @return HTML snippet with the version information.
-Private Function GenVersionInfo(tags)
+Private Function GenVersionInfo(tags, lang)
 	Dim info : info = ""
 
+	log.LogDebug "GenVersionInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+
 	If tags.Exists("@version") Then
-		info = "<h4>Version:</h4>" & vbNewLine & "<p class=""value"">" & EncodeHTMLEntities(tags("@version"))
+		info = "<h4>" & EncodeHTMLEntities(localize(lang)("VERSION")) & ":</h4>" & vbNewLine _
+			& "<p class=""value"">" & EncodeHTMLEntities(tags("@version"))
 		If tags.Exists("@date") Then info = info & ", " & EncodeHTMLEntities(tags("@date"))
 		info = info & "</p>" & vbNewLine
 	End If
 
 	GenVersionInfo = info
+End Function
+
+'! Generate summary information from the @brief tag.
+'!
+'! @param  name   Name of the documented element.
+'! @param  tags   Dictionary with the tag/value pairs from the documentation
+'!                header.
+'! @return HTML snippet with the summary information. Empty string if no
+'!         summary information was present.
+Private Function GenSummaryInfo(name, tags)
+	Dim summary
+
+	log.LogDebug "GenSummaryInfo(" & TypeName(name) & ", " & TypeName(tags) & ")"
+
+	summary = "<p class=""function""><code>" & name & "</code></p>" & vbNewLine
+	If tags.Exists("@brief") Then summary = summary & "<p class=""description"">" _
+		& EncodeHTMLEntities(tags("@brief")) & "</p>" & vbNewLine
+	GenSummaryInfo = summary
 End Function
 
 '! Generate HTML code for heading and signature line in a "detail" section.
@@ -979,6 +1204,8 @@ End Function
 '!         information was present.
 Private Function GenDetailsInfo(tags)
 	Dim info : info = ""
+
+	log.LogDebug "GenDetailsInfo(" & TypeName(tags) & ")"
 
 	If tags.Exists("@details") Then
 		info = MangleBlankLines(tags("@details"), 1)
@@ -1009,14 +1236,18 @@ End Function
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
 '! @return HTML snippet with the parameter information. Empty string if no
 '!         parameter information was present.
-Private Function GenParameterInfo(tags)
+Private Function GenParameterInfo(tags, lang)
 	Dim param
 	Dim info : info = ""
 
+	log.LogDebug "GenParameterInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+
 	If tags.Exists("@param") Then
-		info = "<h4>Parameters:</h4>" & vbNewLine
+		info = "<h4>" & EncodeHTMLEntities(localize(lang)("PARAM")) & ":</h4>" & vbNewLine
 		For Each param In tags("@param")
 			param = Split(param, " ", 2)
 			info = info & "<p class=""value""><code>" & EncodeHTMLEntities(param(0)) & "</code>"
@@ -1032,12 +1263,15 @@ End Function
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
 '! @return HTML snippet with the return value information. Empty string if no
 '!         return value information was present.
-Private Function GenReturnValueInfo(tags)
+Private Function GenReturnValueInfo(tags, lang)
 	GenReturnValueInfo = ""
-	If tags.Exists("@return") Then GenReturnValueInfo = "<h4>Returns:</h4>" & vbNewLine _
-		& "<p class=""value"">" & EncodeHTMLEntities(tags("@return")) & "</p>" & vbNewLine
+	log.LogDebug "GenReturnValueInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+	If tags.Exists("@return") Then GenReturnValueInfo = "<h4>" & EncodeHTMLEntities(localize(lang)("RETURN")) _
+		& ":</h4>" & vbNewLine & "<p class=""value"">" & EncodeHTMLEntities(tags("@return")) & "</p>" & vbNewLine
 End Function
 
 '! Generate information on the errors raised by a method/procedure from @raise
@@ -1045,14 +1279,18 @@ End Function
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
 '! @return HTML snippet with the error information. Empty string if no error
 '!         information was present.
-Private Function GenExceptionInfo(tags)
+Private Function GenExceptionInfo(tags, lang)
 	Dim errType
 	Dim info : info = ""
 
+	log.LogDebug "GenExceptionInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+
 	If tags.Exists("@raise") Then
-		info = "<h4>Raises:</h4>" & vbNewLine
+		info = "<h4>" & EncodeHTMLEntities(localize(lang)("EXCEPT")) & ":</h4>" & vbNewLine
 		For Each errType In tags("@raise")
 			info = info & "<p class=""value"">" & EncodeHTMLEntities(errType) & "</p>" & vbNewLine
 		Next
@@ -1069,6 +1307,8 @@ End Function
 '! @return HTML snippet with the hyperlink to the reference.
 Private Function CreateLink(ByVal ref, ByVal isMailTo)
 	Dim reURL, link
+
+	log.LogDebug "CreateLink(" & TypeName(ref) & ", " & TypeName(isMailTo) & ")"
 
 	Set reURL = CompileRegExp("<(.*)>", True, True)
 	ref = reURL.Replace(ref, "$1")
@@ -1089,26 +1329,12 @@ Private Function CreateLink(ByVal ref, ByVal isMailTo)
 	CreateLink = "<a href=""" & ref & """" & link & "</a>"
 End Function
 
-'! Generate summary information from the @brief tag.
-'!
-'! @param  name   Name of the documented element.
-'! @param  tags   Dictionary with the tag/value pairs from the documentation
-'!                header.
-'! @return HTML snippet with the summary information. Empty string if no
-'!         summary information was present.
-Private Function GenSummary(name, tags)
-	Dim summary
-	summary = "<p class=""function""><code>" & name & "</code></p>" & vbNewLine
-	If tags.Exists("@brief") Then summary = summary & "<p class=""description"">" _
-		& EncodeHTMLEntities(tags("@brief")) & "</p>" & vbNewLine
-	GenSummary = summary
-End Function
-
 '! Create a stylesheet with the given filename.
 '!
 '! @param  filename   Name (including relative or absolute path) of the file
 '!                    to create.
 Private Sub CreateStylesheet(filename)
+	log.LogDebug "Creating stylesheet " & filename & " ..."
 	Dim f : Set f = fso.OpenTextFile(filename, ForWriting, True)
 	f.WriteLine "* { margin: 0; padding: 0; border: 0; }" & vbNewLine _
 		& "body { margin: 10px; margin-bottom: 30px; font-family: " & TextFont & "; font-size: " & BaseFontSize & "; }" & vbNewLine _
@@ -1249,6 +1475,7 @@ End Function
 '!
 '! @param  dir  The directory to create.
 Private Sub CreateDirectory(ByVal dir)
+	log.LogDebug "CreateDirectory(" & dir & ")"
 	dir = fso.GetAbsolutePathName(dir)
 	' The recursion terminates once an existing parent folder is found. Which in
 	' the worst case is the drive's root folder.
@@ -1257,6 +1484,7 @@ Private Sub CreateDirectory(ByVal dir)
 		' At this point it's certain that the parent folder does exist, so we can
 		' carry on and create the subfolder.
 		fso.CreateFolder dir
+		log.LogDebug "Directory " & dir & " created."
 	End If
 End Sub
 
@@ -1286,18 +1514,18 @@ Private Sub Append(ByRef var, ByVal val)
 	End Select
 End Sub
 
-'! Return the canonicalized visibility classifier. Can be either Private or
-'! Public. If anything else but the string "private" is given, the function
-'! defaults to Public. That allows to determine the visibility of variable
-'! and constant declarations as well.
+'! Return a boolean value indicating whether the classifier is "private". If
+'! anything else but the string "private" is given, the function defaults to
+'! False. That allows to determine the visibility of variable and constant
+'! declarations as well.
 '!
 '! @param  classifier   The visibility classifier.
-'! @return The canonicalized visibility.
-Private Function GetVisibility(ByVal classifier)
+'! @return True if visibility is "private", otherwise False.
+Private Function CheckIfPrivate(ByVal classifier)
 	If LCase(Trim(Replace(classifier, vbTab, " "))) = "private" Then
-		GetVisibility = "Private"
+		CheckIfPrivate = True
 	Else
-		GetVisibility = "Public"
+		CheckIfPrivate = False
 	End If
 End Function
 
@@ -1436,16 +1664,6 @@ Private Function EncodeHTMLEntities(ByVal text)
 	EncodeHTMLEntities = text
 End Function
 
-'! Write the given heading and (HTML) text to the given file, unless the text
-'! is the empty string. The heading is written as <h2>.
-'!
-'! @param  file     File to write to.
-'! @param  heading  The heading for the given text.
-'! @param  text     Text to write to the file.
-Private Sub WriteSection(file, heading, text)
-	If text <> "" Then file.WriteLine "<h2>" & heading & "</h2>" & vbNewLine & text
-End Sub
-
 '! Mangle multiple blank lines in the given string into the given number of
 '! newlines. Also remove leading and trailing newlines.
 '!
@@ -1454,6 +1672,8 @@ End Sub
 '! @return The string without the unwanted newlines.
 Private Function MangleBlankLines(ByVal str, ByVal number)
 	Dim re, i, replacement
+
+	log.LogDebug "MangleBlankLines(" & TypeName(str) & ", " & TypeName(number) & ")"
 
 	Set re = New RegExp
 	re.Global = True
@@ -1483,20 +1703,84 @@ Private Function MangleBlankLines(ByVal str, ByVal number)
 	MangleBlankLines = str
 End Function
 
-'! Display usage information and exit.
-Private Sub PrintUsage()
-	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/a] [/q] [/p:NAME] /s:SOURCE /d:DOC_DIR" & vbNewLine _
+'! Sort a given array in ascending order. This is merely a wrapper for
+'! QuickSort(), so that I can simply call Sort(array) without having to
+'! specify the boundaries in the inital function call. This is also to
+'! avoid changing the original array.
+'!
+'! @param  arr  The array to sort.
+'! @return The array sorted in ascending order.
+Function Sort(ByVal arr)
+	QuickSort arr, 0, UBound(arr)
+	Sort = arr
+End Function
+
+'! Sort a given array in ascending order, using the quicksort algorithm.
+'!
+'! @param  arr    The array to sort.
+'! @param  left   Left (lower) boundary of the array slice the current
+'!                recursion step will operate on.
+'! @param  right  Right (upper) boundary of the array slice the current
+'!                recursion step will operate on.
+'!
+'! @see http://en.wikipedia.org/wiki/Quicksort
+Sub QuickSort(arr, left, right)
+	Dim pivot, leftIndex, rightIndex, buffer
+
+	log.LogDebug "QuickSort(" & TypeName(arr) & ", " & TypeName(left) & ", " & TypeName(right) & ")"
+
+	leftIndex = left
+	rightIndex = right
+
+	If right - left > 0 Then
+		pivot = Int((left + right) / 2)
+
+		While leftIndex <= pivot And rightIndex >= pivot
+			While arr(leftIndex) < arr(pivot) And leftIndex <= pivot
+				leftIndex = leftIndex + 1
+			Wend
+			While arr(rightIndex) > arr(pivot) And rightIndex >= pivot
+				rightIndex = rightIndex - 1
+			Wend
+
+			buffer = arr(leftIndex)
+			arr(leftIndex) = arr(rightIndex)
+			arr(rightIndex) = buffer
+
+			leftIndex = leftIndex + 1
+			rightIndex = rightIndex - 1
+			If leftIndex - 1 = pivot Then
+				rightIndex = rightIndex + 1
+				pivot = rightIndex
+			ElseIf rightIndex + 1 = pivot Then
+				leftIndex = leftIndex - 1
+				pivot = leftIndex
+			End If
+		Wend
+
+		QuickSort arr, left, pivot-1
+		QuickSort arr, pivot+1, right
+	End If
+End Sub
+
+'! Display usage information and exit with the given exit code.
+'!
+'! @param  exitCode   The exit code.
+Private Sub PrintUsage(exitCode)
+	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/d] [/a] [/q] [/l:LANG] [/p:NAME] /i:SOURCE /o:DOC_DIR" & vbNewLine _
 		& vbTab & WScript.ScriptName & " /?" & vbNewLine & vbNewLine _
-		& vbTab & "/?   Print this help." & vbNewLine _
-		& vbTab & "/a   Generate documentation for all elements (public and private)." & vbNewLine _
-		& vbTab & "     Without this option, documentation is generated for public" & vbNewLine _
-		& vbTab & "     elements only." & vbNewLine _
-		& vbTab & "/d   Generate documentation in DOC_DIR." & vbNewLine _
-		& vbTab & "/p   Use NAME as the project name." & vbNewLine _
-		& vbTab & "/q   Don't print warnings." & vbNewLine _
-		& vbTab & "/s   Source to generate documentation from. Can be a file or a" & vbNewLine _
-		& vbTab & "     directory."
-	WScript.Quit 0
+		& vbTab & "/?" & vbTab & "Print this help." & vbNewLine _
+		& vbTab & "/a" & vbTab & "Generate documentation for all elements (public and private)." & vbNewLine _
+		& vbTab & vbTab & "Without this option, documentation is generated for public" & vbNewLine _
+		& vbTab & vbTab & "elements only." & vbNewLine _
+		& vbTab & "/d" & vbTab & "Enable debug messages. (you really don't want this)" & vbNewLine _
+		& vbTab & "/i" & vbTab & "Read input files from SOURCE. Can be either a file or a" & vbNewLine _
+		& vbTab & vbTab & "directory. (required)" & vbNewLine _
+		& vbTab & "/l" & vbTab & "Create localized output [" & Join(Sort(localize.Keys), ",") & "]. Default language is " & DefaultLanguage & "." & vbNewLine _
+		& vbTab & "/o" & vbTab & "Generate output files in DOC_DIR. (required)" & vbNewLine _
+		& vbTab & "/p" & vbTab & "Use NAME as the project name." & vbNewLine _
+		& vbTab & "/q" & vbTab & "Don't print warnings. Ignored if debug messages are enabled."
+	WScript.Quit exitCode
 End Sub
 
 ' ==============================================================================

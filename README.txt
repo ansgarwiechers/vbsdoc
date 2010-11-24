@@ -8,7 +8,7 @@ Which kinda sucks.
 I tried VBDOX [1], but didn't find usability or results too convincing.
 I also tried doxygen [2] by adapting Basti Grembowietz' Visual Basic
 doxygen filter. However, doxygen does a lot of things I don't actually
-need, and I didn't manage to make it do some of the things I did want.
+need, and I didn't manage to make it do some of the things I do need.
 Thus I ended up writing my own VBScript documentation generator.
 
 
@@ -19,7 +19,7 @@ See COPYING.txt.
 
 Requirements
 ------------
-VBSdoc uses this Logger class [3] for displaying messages.
+VBSdoc uses my Logger class [3] for displaying messages.
 
 
 Usage

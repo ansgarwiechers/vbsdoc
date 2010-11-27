@@ -9,7 +9,7 @@ I tried VBDOX [1], but didn't find usability or results too convincing.
 I also tried doxygen [2] by adapting Basti Grembowietz' Visual Basic
 doxygen filter. However, doxygen does a lot of things I don't actually
 need, and I didn't manage to make it do some of the things I do need.
-Thus I ended up writing my own VBScript documentation generator.
+Thus I ended up writing my own VBScript documentation generator. Enjoy.
 
 
 Copyright
@@ -24,18 +24,20 @@ VBSdoc uses my Logger class [3] for displaying messages.
 
 Usage
 -----
-VBSdoc.vbs [/a] [/q] [/p:NAME] /s:SOURCE /d:DOC_DIR
+VBSdoc.vbs [/d] [/a] [/q] [/l:LANG] [/p:NAME] /i:SOURCE /o:DOC_DIR
 VBSdoc.vbs /?
 
-  /?   Print this help.
-  /a   Generate documentation for all elements (public and private).
-       Without this option, documentation is generated for public
-       elements only.
-  /d   Generate documentation in DOC_DIR.
-  /p   Use NAME as the project name.
-  /q   Don't print warnings.
-  /s   Source to generate documentation from. Can be a file or a
-       directory.
+  /?      Print this help.
+  /a      Generate documentation for all elements (public and private).
+          Without this option, documentation is generated for public
+          elements only.
+  /d      Enable debug messages. (you really don't want this)
+  /i      Read input files from SOURCE. Can be either a file or a
+          directory. (required)
+  /l      Create localized output [de,en]. Default language is en.
+  /o      Generate output files in DOC_DIR. (required)
+  /p      Use NAME as the project name.
+  /q      Don't print warnings. Ignored if debug messages are enabled.
 
 
 Output Format
@@ -114,10 +116,10 @@ the line with the element. Examples:
   Function Foo
 
 - End-of-Line doc comment:
-  Const BAR = 42  '! Some End-of-Line   <- part of the documentation for BAR
-                  '! comment.           <- part of the documentation for BAR
+  Const BAR = 42  '! Some End-of-Line   <- part of BAR documentation
+                  '! comment.           <- part of BAR documentation
 
-                  '! Some other comment <- not part of the documentation for BAR
+                  '! Some other comment <- not part of BAR documentation
 
 
 Tags
@@ -140,14 +142,27 @@ is identical to a doc comment like this:
 Any doc comment that is not associated with a tag is assigned/appended
 to the default tag (@details). Detail comments that are separated by
 either blank doc comment lines or other tags, become separate paragraphs
-in the documentation. They also do support bulleted lists:
+in the documentation. Bulleted lists are also supported in detail comments:
 
   '! Some enumeration:
   '! - item A
   '! - item B
   '! - item C
 
-Supported tags are:
+Example of a properly doc-commented function:
+
+'! Return a slice (sub-array) from a given array.
+'!
+'! @param  first  Index of the beginning of the slice.
+'! @param  last   Index of the end of the slice.
+'! @return A slice from the given array.
+'!
+'! @see http://somepage.example.org/
+Function Slice(arr, first, last)
+...
+End Function
+
+Complete list of supported tags:
 
 @author   Name and/or mail address of the author. Optional, multiple
           tags per documented element are allowed.
@@ -203,90 +218,8 @@ or a detail description. If both are missing, a warning will be issued,
 although the documentation generation will continue.
 
 
-Data Structures
----------------
-During the data gathering phase, the documentation data and metadata is
-gathered into data structures as lined out below. Square brackets signify
-arrays, curly brackets signify dictionaries. Elements in double quotes are
-name literals. Leaf elements are data types.
-
-{
-outdir = {
-         "Metadata"   = tags
-         "Todo"       = [ string ]
-         "Classes"    = {
-                        name = {
-                               "Metadata"    = tags
-                               "Constructor" = {
-                                               "Parameters" = []
-                                               "IsPrivate"  = boolean
-                                               "Metadata"   = tags
-                                               }
-                               "Destructor"  = {
-                                               "Parameters" = []
-                                               "IsPrivate"  = boolean
-                                               "Metadata"   = tags
-                                               }
-                               "Properties"  = {
-                                               name = {
-                                                      "Readable"  = boolean
-                                                      "Writable"  = boolean
-                                                      "Metadata"  = tags
-                                                      "IsPrivate" = False
-                                                      }
-                                               }
-                               "Methods"     = {
-                                               name = {
-                                                      "Parameters" = [ string ]
-                                                      "IsPrivate"  = boolean
-                                                      "Metadata"   = tags
-                                                      }
-                                               }
-                               "Fields"      = {
-                                               name = {
-                                                      "IsPrivate" = boolean
-                                                      "Metadata"  = tags
-                                                      }
-                                               }
-                               }
-                        }
-         "Procedures" = {
-                        name = {
-                               "Parameters" = [ string ]
-                               "IsPrivate"  = boolean
-                               "Metadata"   = tags
-                               }
-                        }
-         "Constants"  = {
-                        name = {
-                               "Value"     = primitive
-                               "IsPrivate" = boolean
-                               "Metadata"  = tags
-                               }
-                        }
-         "Variables"  = {
-                        name = {
-                               "IsPrivate" = boolean
-                               "Metadata"  = tags
-                               }
-                        }
-}
-
-tags = {
-       "@author"  = [ string ]
-       "@brief"   = string
-       "@date"    = string
-       "@detail"  = string
-       "@param"   = [ string ]
-       "@raise"   = [ string ]
-       "@return"  = string
-       "@see"     = [ string ]
-       "@version" = string
-       }
-
-
 References
 ----------
 [1] http://vbdox.sourceforge.net/
 [2] http://www.doxygen.org/
-[3] http://www.planetcobalt.net/download/LoggerClass-1.1.zip
+[3] http://www.planetcobalt.net/download/LoggerClass-1.2.zip

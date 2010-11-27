@@ -237,6 +237,85 @@ End Sub
 ' Data gathering
 ' ------------------------------------------------------------------------------
 
+' During the data gathering phase, the documentation data and metadata is
+' gathered into data structures as lined out below. Square brackets signify
+' arrays, curly brackets signify dictionaries. Elements in double quotes are
+' name literals. Leaf elements are data types.
+'
+' {
+' outdir = {
+'          "Metadata"   = tags
+'          "Todo"       = [ string ]
+'          "Classes"    = {
+'                         name = {
+'                                "Metadata"    = tags
+'                                "Constructor" = {
+'                                                "Parameters" = []
+'                                                "IsPrivate"  = boolean
+'                                                "Metadata"   = tags
+'                                                }
+'                                "Destructor"  = {
+'                                                "Parameters" = []
+'                                                "IsPrivate"  = boolean
+'                                                "Metadata"   = tags
+'                                                }
+'                                "Properties"  = {
+'                                                name = {
+'                                                       "Readable"  = boolean
+'                                                       "Writable"  = boolean
+'                                                       "Metadata"  = tags
+'                                                       "IsPrivate" = False
+'                                                       }
+'                                                }
+'                                "Methods"     = {
+'                                                name = {
+'                                                       "Parameters" = [ string ]
+'                                                       "IsPrivate"  = boolean
+'                                                       "Metadata"   = tags
+'                                                       }
+'                                                }
+'                                "Fields"      = {
+'                                                name = {
+'                                                       "IsPrivate" = boolean
+'                                                       "Metadata"  = tags
+'                                                       }
+'                                                }
+'                                }
+'                         }
+'          "Procedures" = {
+'                         name = {
+'                                "Parameters" = [ string ]
+'                                "IsPrivate"  = boolean
+'                                "Metadata"   = tags
+'                                }
+'                         }
+'          "Constants"  = {
+'                         name = {
+'                                "Value"     = primitive
+'                                "IsPrivate" = boolean
+'                                "Metadata"  = tags
+'                                }
+'                         }
+'          "Variables"  = {
+'                         name = {
+'                                "IsPrivate" = boolean
+'                                "Metadata"  = tags
+'                                }
+'                         }
+' }
+'
+' tags = {
+'        "@author"  = [ string ]
+'        "@brief"   = string
+'        "@date"    = string
+'        "@detail"  = string
+'        "@param"   = [ string ]
+'        "@raise"   = [ string ]
+'        "@return"  = string
+'        "@see"     = [ string ]
+'        "@version" = string
+'        }
+
 '! Traverse all subdirecotries of the given srcDir and extract documentation
 '! information from all VBS files. If includePrivate is set to True, then
 '! documentation for private elements is generated as well, otherwise only
@@ -2032,6 +2111,7 @@ End Function
 
 '! Return a slice (sub-array) from a given array.
 '!
+'! @param  arr    The source array.
 '! @param  first  Index of the beginning of the slice.
 '! @param  last   Index of the end of the slice.
 '! @return A slice from the given array.

@@ -19,10 +19,6 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-'! @todo Add HTMLHelp generation?
-'! @todo Add tag @mainpage for global documentation on the global index page?
-'! @todo Add feature for pre-formatted text? (something like [pre]...[/pre])
-
 Option Explicit
 
 Import "LoggerClass.vbs"
@@ -39,6 +35,7 @@ Private Const StylesheetName = "vbsdoc.css"
 Private Const TextFont       = "Verdana, Arial, helvetica, sans-serif"
 Private Const CodeFont       = "Lucida Console, Courier New, Courier, monospace"
 Private Const BaseFontSize   = "14px"
+Private Const CopyrightInfo  = "Created with VBSdoc. &copy;2010 <a href=""mailto:ansgar.wiechers@planetcobalt.net"">Ansgar Wiechers</a>."
 
 Private Const DefaultLanguage = "en"
 
@@ -316,10 +313,10 @@ End Sub
 '        "@version" = string
 '        }
 
-'! Traverse all subdirecotries of the given srcDir and extract documentation
-'! information from all VBS files. If includePrivate is set to True, then
-'! documentation for private elements is generated as well, otherwise only
-'! public elements are included in the documentation.
+'! Recursively traverse all subdirecotries of the given srcDir and extract
+'! documentation information from all VBS files. If includePrivate is set
+'! to True, then documentation for private elements is generated as well,
+'! otherwise only public elements are included in the documentation.
 '!
 '! @param  doc            Reference to the dictionary containing the
 '!                        documentation elements extracted from the source
@@ -350,14 +347,12 @@ Public Sub GetDef(ByRef doc, srcDir, docDir, includePrivate)
 	Next
 End Sub
 
-'! Generate the documentation for a given file. The documentation files are
-'! created in the given documentation directory. If includePrivate is set to
-'! True, then documentation for private elements is generated as well,
+'! Extract documentation information from a file. If includePrivate is set to
+'! True, then documentation data for private elements is gathered as well,
 '! otherwise only public elements are included in the documentation.
 '!
 '! @param  filename       Name of the source file for documentation generation.
 '! @param  includePrivate Include documentation for private elements.
-'! @return The name and path of the generated documentation file.
 '! @return Dictionary describing structural and metadata elements in the given
 '!         source file.
 Public Function GetFileDef(filename, includePrivate)
@@ -599,7 +594,6 @@ End Function
 '! not be readable/writable from an interface point of view.
 '!
 '! @param  code   Code fragment containing class properties.
-'! @return Dictionary with summary and detail documentation.
 '! @return Dictionary of dictionaries describing the properties. The keys of
 '!         the main dictionary are the names of the properties, which point to
 '!         sub-dictionaries containing the definition data.
@@ -728,6 +722,7 @@ Private Function GetConstDef(ByRef code, ByVal includePrivate)
 				d.Add "IsPrivate", isPrivate
 				d.Add "Metadata", tags
 
+				log.LogDebug "++ " & .Item(5)
 				constants.Add .Item(5), d
 			End If
 		End With
@@ -1060,7 +1055,8 @@ End Sub
 '!
 '! @param  outFile  Handle to a file.
 Private Sub WriteFooter(outFile)
-	outFile.WriteLine "</body>" & vbNewLine & "</html>"
+	outFile.WriteLine "<p class=""footer"">" & CopyrightInfo & "</p>" & vbNewLine _
+		& "</body>" & vbNewLine & "</html>"
 End Sub
 
 '! Generate summary documentation. The documentation is generated in HTML
@@ -1073,7 +1069,7 @@ End Sub
 '!                      property, or variable)
 '! @return The summary documentation in HTML format.
 Private Function GenSummary(ByVal name, ByVal properties, ByVal elementType)
-	Dim signature, params
+	Dim signature, params, re
 
 	log.LogDebug "> GenSummary(" & TypeName(name) & ", " & TypeName(properties) & ", " & TypeName(elementType) & ")"
 	log.LogDebug "  name:        " & name
@@ -1084,8 +1080,9 @@ Private Function GenSummary(ByVal name, ByVal properties, ByVal elementType)
 
 	Select Case LCase(elementType)
 	Case "constant"
+		Set re = CompileRegExp("^&h([0-9a-f]+)$", True, True)
 		signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>: " _
-			& Trim(properties("Value"))
+			& re.Replace(Trim(properties("Value")), "0x$1")
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "procedure"
 		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
@@ -1118,7 +1115,7 @@ End Function
 '!                    being created.
 '! @return The detail documentation in HTML format.
 Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elementType, ByVal filename)
-	Dim heading, signature, params, visibility, accessibility
+	Dim heading, signature, params, visibility, accessibility, re
 
 	log.LogDebug "> GenDetails(" & TypeName(name) & ", " & TypeName(properties) & ", " & TypeName(lang) & ", " & TypeName(elementType) & ", " & TypeName(filename) & ")"
 	log.LogDebug "  name:        " & name
@@ -1146,7 +1143,9 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 
 	Select Case LCase(elementType)
 	Case "constant"
-		signature = visibility & " Const <span class=""name"">" & name & "</span> = " & Trim(properties("Value"))
+		Set re = CompileRegExp("^&h([0-9a-f]+)$", True, True)
+		signature = visibility & " Const <span class=""name"">" & name & "</span> = " _
+			& re.Replace(Trim(properties("Value")), "0x$1")
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
@@ -1494,6 +1493,7 @@ Private Sub CreateStylesheet(filename)
 		& "h4,p.description { margin: 3px 0 0 50px; }" & vbNewLine _
 		& "h4 { margin-top: 6px; margin-bottom: 4px; }" & vbNewLine _
 		& "p.value { margin-left: 100px; }" & vbNewLine _
+		& "p.footer { margin-top: 20px; text-align: center; font-size: 10px; }" & vbNewLine _
 		& "code { font-family: " & CodeFont & "; }" & vbNewLine _
 		& "span.name { font-weight: bold; }" & vbNewLine _
 		& "hr { border: 1px solid #a0a0a0; width: 94%; margin: 10px 3%; }" & vbNewLine _

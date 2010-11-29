@@ -2,7 +2,7 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2010-11-27
+'! @date    2010-11-29
 '! @version 1.0
 
 ' This program is free software; you can redistribute it and/or

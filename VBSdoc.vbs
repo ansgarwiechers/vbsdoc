@@ -2122,7 +2122,11 @@ Private Function Slice(arr, first, last)
 
 	a = Array()
 
-	If first <= last Then
+	' slice cannot contain values from arr if any of these are true:
+	' - first > last
+	' - both first and last < first index of arr
+	' - both first and last > last index of arr
+	If first <= last And last >= 0 And first <= UBound(arr) Then
 		If first < 0 Then first = 0
 		If last > UBound(arr) Then last = UBound(arr)
 

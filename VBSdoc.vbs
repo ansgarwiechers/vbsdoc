@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2010-11-29
-'! @version 1.0
+'! @date    2010-12-31
+'! @version 2.0
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -24,18 +24,21 @@ Option Explicit
 Import "LoggerClass.vbs"
 
 ' Some symbolic constants for internal use.
-Private Const ForReading = 1
-Private Const ForWriting = 2
+Private Const ForReading  = 1
+Private Const ForWriting  = 2
+Private Const WshRunning  = 0
+Private Const WshFinished = 1
 
 Private Const vbReplaceAll = -1
 
 Private Const Ext = "vbs"
 
+Private Const IndexFileName  = "index.html"
 Private Const StylesheetName = "vbsdoc.css"
 Private Const TextFont       = "Verdana, Arial, helvetica, sans-serif"
 Private Const CodeFont       = "Lucida Console, Courier New, Courier, monospace"
 Private Const BaseFontSize   = "14px"
-Private Const CopyrightInfo  = "Created with VBSdoc. &copy;2010 <a href=""mailto:ansgar.wiechers@planetcobalt.net"">Ansgar Wiechers</a>."
+Private Const CopyrightInfo  = "Created with <a href=""http://www.planetcobalt.net/sdb/vbsdoc.shtml"" target=""_blank"">VBSdoc</a>. &copy;2010 <a href=""mailto:ansgar.wiechers@planetcobalt.net"">Ansgar Wiechers</a>."
 
 Private Const DefaultLanguage = "en"
 
@@ -58,9 +61,9 @@ Private reCtor : Set reCtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Publ
 Private reDtor : Set reDtor = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Sub[ \t]+(Class_Terminate)[ \t]*(\(\))?[\s\S]*?End[ \t]+Sub", True, True)
 '! Match implementations of methods/procedures as well as prepended
 '! doc comments.
-Private reMethod : Set reMethod = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?(Function|Sub)[ \t]+(\w+)[ \t]*(\([\w\t ,]*\))?[\s\S]*?End[ \t]+\6", True, True)
+Private reMethod : Set reMethod = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public([ \t]+Default)?|Private)[ \t]+)?(Function|Sub)[ \t]+(\w+)[ \t]*(\([\w\t ,]*\))?[\s\S]*?End[ \t]+\7", True, True)
 '! Match property implementations and prepended doc comments.
-Private reProperty : Set reProperty = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Property[ \t]+(Get|Let|Set)[ \t]+(\w+)[ \t]*(\([\w\t ]*\))?[\s\S]*?End[ \t]+Property", True, True)
+Private reProperty : Set reProperty = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public([ \t]+Default)?|Private)[ \t]+)?Property[ \t]+(Get|Let|Set)[ \t]+(\w+)[ \t]*(\([\w\t ,]*\))?[\s\S]*?End[ \t]+Property", True, True)
 '! Match definitions of constants and prepended doc comments.
 Private reConst : Set reConst = CompileRegExp("(^|\n)(([ \t]*'!.*\n)*)[ \t]*((Public|Private)[ \t]+)?Const[ \t]+(\w+)[ \t]*=[ \t]*(.*)", True, True)
 '! Match variable declarations and prepended doc comments. Allow for combined
@@ -75,15 +78,15 @@ Private reDocComment : Set reDocComment = CompileRegExp("^[ \t]*('!.*)", True, T
 
 '! Dictionary listing the tags that VBSdoc accepts.
 Private isValidTag : Set isValidTag = CreateObject("Scripting.Dictionary")
-	isValidTag.Add "@author", True
-	isValidTag.Add "@brief", True
-	isValidTag.Add "@date", True
+	isValidTag.Add "@author" , True
+	isValidTag.Add "@brief"  , True
+	isValidTag.Add "@date"   , True
 	isValidTag.Add "@details", True
-	isValidTag.Add "@param", True
-	isValidTag.Add "@raise", True
-	isValidTag.Add "@return", True
-	isValidTag.Add "@see", True
-	isValidTag.Add "@todo", True
+	isValidTag.Add "@param"  , True
+	isValidTag.Add "@raise"  , True
+	isValidTag.Add "@return" , True
+	isValidTag.Add "@see"    , True
+	isValidTag.Add "@todo"   , True
 	isValidTag.Add "@version", True
 
 Private localize : Set localize = CreateObject("Scripting.Dictionary")
@@ -94,11 +97,12 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("en").Add "CLASS_SUMMARY"   , "Classes Summary"
 		localize("en").Add "CONST_DETAIL"    , "Global Constant Detail"
 		localize("en").Add "CONST_SUMMARY"   , "Global Constant Summary"
-		localize("en").Add "CTORDTOR_DETAIL", "Constructor/Destructor Detail"
+		localize("en").Add "CTORDTOR_DETAIL" , "Constructor/Destructor Detail"
 		localize("en").Add "CTORDTOR_SUMMARY", "Constructor/Destructor Summary"
+		localize("en").Add "EXCEPT"          , "Raises"
 		localize("en").Add "FIELD_DETAIL"    , "Field Detail"
 		localize("en").Add "FIELD_SUMMARY"   , "Field Summary"
-		localize("en").Add "EXCEPT"          , "Raises"
+		localize("en").Add "HTML_HELP_LANG"  , "0x409 Englisch (USA)"
 		localize("en").Add "METHOD_DETAIL"   , "Method Detail"
 		localize("en").Add "METHOD_SUMMARY"  , "Method Summary"
 		localize("en").Add "PARAM"           , "Parameters"
@@ -124,6 +128,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("de").Add "EXCEPT"          , "Wirft"
 		localize("de").Add "FIELD_DETAIL"    , "Attribute - Details"
 		localize("de").Add "FIELD_SUMMARY"   , "Attribute - Zusammenfassung"
+		localize("de").Add "HTML_HELP_LANG"  , "0x407 Deutsch (Deutschland)"
 		localize("de").Add "METHOD_DETAIL"   , "Methoden - Details"
 		localize("de").Add "METHOD_SUMMARY"  , "Methoden - Zusammenfassung"
 		localize("de").Add "PARAM"           , "Parameter"
@@ -150,7 +155,7 @@ Main WScript.Arguments
 '!
 '! @param  args   The list of arguments passed to the script.
 Public Sub Main(args)
-	Dim lang, includePrivate, srcRoot, docRoot, doc
+	Dim lang, includePrivate, chmFile, srcRoot, docRoot, doc
 	Dim docTitle, name
 
 	' initialize global variables/settings with default values
@@ -161,6 +166,7 @@ Public Sub Main(args)
 	' initialize local variables with default values
 	lang = DefaultLanguage
 	includePrivate = False
+	chmFile = ""
 
 	' evaluate commandline arguments
 	With args
@@ -170,6 +176,13 @@ Public Sub Main(args)
 		If .Named.Exists("a") Then includePrivate = True
 		If .Named.Exists("q") And Not log.Debug Then beQuiet = True
 		If .Named.Exists("p") Then projectName = .Named("p")
+		If .Named.Exists("h") Then
+			If Trim(.Named("h")) <> "" Then
+				chmFile = Trim(.Named("h"))
+			Else
+				PrintUsage(1)
+			End If
+		End If
 
 		' Use the default language if /l is omitted or used without specifying a
 		' particular language. Use the given language if it exists in localize.Keys.
@@ -226,6 +239,7 @@ Public Sub Main(args)
 	Next
 
 	GenDoc doc, docRoot, lang, docTitle
+	If chmFile <> "" Then GenHTMLHelp chmFile, docRoot, lang
 
 	WScript.Quit(0)
 End Sub
@@ -258,16 +272,19 @@ End Sub
 '                                                }
 '                                "Properties"  = {
 '                                                name = {
-'                                                       "Readable"  = boolean
-'                                                       "Writable"  = boolean
-'                                                       "Metadata"  = tags
-'                                                       "IsPrivate" = False
+'                                                       "Readable"   = boolean
+'                                                       "Writable"   = boolean
+'                                                       "Parameters" = [ string ]
+'                                                       "IsPrivate"  = False
+'                                                       "IsDefault"  = boolean
+'                                                       "Metadata"   = tags
 '                                                       }
 '                                                }
 '                                "Methods"     = {
 '                                                name = {
 '                                                       "Parameters" = [ string ]
 '                                                       "IsPrivate"  = boolean
+'                                                       "IsDefault"  = boolean
 '                                                       "Metadata"   = tags
 '                                                       }
 '                                                }
@@ -283,6 +300,7 @@ End Sub
 '                         name = {
 '                                "Parameters" = [ string ]
 '                                "IsPrivate"  = boolean
+'                                "IsDefault"  = boolean
 '                                "Metadata"   = tags
 '                                }
 '                         }
@@ -475,6 +493,7 @@ Private Function GetClassDef(ByRef code, ByVal includePrivate)
 			d.Add "Methods", GetMethodDef(classBody, includePrivate)
 			d.Add "Fields", GetVariableDef(classBody, includePrivate)
 
+			log.LogDebug "Adding class " & .Item(3)
 			classes.Add .Item(3), d
 		End With
 	Next
@@ -511,6 +530,7 @@ Private Function GetCtorDtorDef(ByRef code, ByVal includePrivate, ByVal returnCt
 		With m.SubMatches
 			isPrivate = CheckIfPrivate(.Item(4))
 			If Not isPrivate Or includePrivate Then
+				log.LogDebug "Adding " & descr
 				Set tags = ProcessComments(.Item(1))
 				CheckConsistency .Item(5), Array(), tags, "sub"
 
@@ -562,25 +582,19 @@ Private Function GetMethodDef(ByRef code, ByVal includePrivate)
 		With m.SubMatches
 			isPrivate = CheckIfPrivate(.Item(4))
 			If Not isPrivate Or includePrivate Then
-				If Len(.Item(7)) > 0 Then
-					params = Mid(.Item(7), 2, Len(.Item(7))-2)  ' remove enclosing parentheses
-				Else
-					params = ""
-				End If
-				params = Replace(params, vbTab, " ")
-				params = Replace(params, "ByVal ", "", 1, vbReplaceAll, vbTextCompare)
-				params = Replace(params, "ByRef ", "", 1, vbReplaceAll, vbTextCompare)
-				params = Split(Replace(params, " ", ""), ",")
+				params = ExtractParameterNames(.Item(8))
 
 				Set tags = ProcessComments(.Item(1))
-				CheckConsistency .Item(6), params, tags, .Item(5)
+				CheckConsistency .Item(7), params, tags, .Item(6)
 
 				Set d = CreateObject("Scripting.Dictionary")
 				d.Add "Parameters", params
 				d.Add "IsPrivate", isPrivate
+				d.Add "IsDefault", LCase(Trim(Replace(.Item(5), vbTab, ""))) = "default"
 				d.Add "Metadata", tags
 
-				methods.Add .Item(6), d
+				log.LogDebug "Adding procedure/function " & .Item(7)
+				methods.Add .Item(7), d
 			End If
 		End With
 	Next
@@ -598,7 +612,7 @@ End Function
 '!         the main dictionary are the names of the properties, which point to
 '!         sub-dictionaries containing the definition data.
 Private Function GetPropertyDef(ByRef code)
-	Dim m, name, d
+	Dim defaultProperty, m, name, d, undocumented, arr, param
 
 	log.LogDebug "> GetPropertyDef(" & TypeName(code) & ")"
 
@@ -612,13 +626,21 @@ Private Function GetPropertyDef(ByRef code)
 				' Private getter and setter methods are disregarded, because even with
 				' the method present, the property is not readable/writable from an
 				' interface point of view.
-				If LCase(.Item(5)) = "get" Then
+				If LCase(.Item(6)) = "get" Then
 					' getter function
-					readable.Add .Item(6), .Item(1)
+					readable.Add .Item(7), Array(.Item(1), ExtractParameterNames(.Item(8)))
 				Else
-					' setter function
-					writable.Add .Item(6), .Item(1)
+					' setter function(s)
+					' there can be two: "Set" for objects, "Let" for values
+					If Not writable.Exists(.Item(7)) Then
+						writable.Add .Item(7), Array(.Item(1), ExtractParameterNames(.Item(8)))
+					Else
+						' Append additional doc comments for the second setter function,
+						' but omit the second parameter set (for simplicity).
+						writable(.Item(7))(0) = writable(.Item(7))(0) & .Item(1)
+					End If
 				End If
+				If LCase(Trim(Replace(.Item(5), vbTab, ""))) = "default" Then defaultProperty = .Item(7)
 			End If
 		End With
 	Next
@@ -632,12 +654,19 @@ Private Function GetPropertyDef(ByRef code)
 		d.Add "Readable", True
 		If writable.Exists(name) Then
 			d.Add "Writable", True
-			d.Add "Metadata", ProcessComments(readable(name) & writable(name))
+			d.Add "Metadata", ProcessComments(readable(name)(0) & writable(name)(0))
+			CheckPropParamConsistency readable(name)(1), d("Metadata")("@param"), name, True
+			CheckPropParamConsistency writable(name)(1), d("Metadata")("@param"), name, False
 			writable.Remove(name)
 		Else
 			d.Add "Writable", False
-			d.Add "Metadata", ProcessComments(readable(name))
+			d.Add "Metadata", ProcessComments(readable(name)(0))
+			CheckPropParamConsistency readable(name)(1), d("Metadata")("@param"), name, True
 		End If
+		d.Add "Parameters", readable(name)(1) ' readable(name) knows the actual parameter(s) in both cases, so we can use that
+		d.Add "IsPrivate", False
+		d.Add "IsDefault", name = defaultProperty
+		log.LogDebug "Adding property " & name
 		properties.Add name, d
 	Next
 
@@ -648,7 +677,28 @@ Private Function GetPropertyDef(ByRef code)
 		Set d = CreateObject("Scripting.Dictionary")
 		d.Add "Readable", False
 		d.Add "Writable", True
-		d.Add "Metadata", ProcessComments(writable(name))
+		d.Add "IsPrivate", False
+		d.Add "IsDefault", name = defaultProperty
+		d.Add "Metadata", ProcessComments(writable(name)(0))
+
+		CheckPropParamConsistency writable(name)(1), d("Metadata")("@param"), name, False
+		' No readable property, so we need to eliminate the additional "value"
+		' parameter from the parameter list. Since there should be only a single
+		' undocumented parameter, we're removing that one from the array.
+		undocumented = GetMissing(writable(name)(1), d("Metadata")("@param"))
+		If UBound(undocumented) >= 0 Then
+			arr = Array()
+			For Each param In writable(name)(1)
+				If LCase(param) <> LCase(undocumented(0)) Then
+					ReDim Preserve arr(UBound(arr)+1)
+					arr(UBound(arr)) = p1
+				End If
+			Next
+		Else
+			arr = writable(name)(i)
+		End If
+		d.Add "Parameters", arr
+
 		properties.Add name, d
 	Next
 
@@ -686,6 +736,7 @@ Private Function GetVariableDef(ByRef code, ByVal includePrivate)
 				d.Add "Metadata", tags
 
 				For Each name In vars
+					log.LogDebug "Adding variable " & name
 					variables.Add name, d
 				Next
 			End If
@@ -825,6 +876,10 @@ Private Function ProcessComments(ByVal comments)
 	If UBound(errors) > -1 Then tags.Add "@raise", errors
 	If UBound(refs) > -1 Then tags.Add "@see", refs
 
+	' Remove trailing whitespace from @details descriptions.
+	Set re = CompileRegExp("\s+$", True, False)
+	tags("@details") = re.Replace(tags("@details"), "")
+
 	' If no short description was given, set it to the first full sentence (or
 	' the first line, whichever is the shorter match) of the long description.
 	' If no long description was given, set it to the short description.
@@ -863,13 +918,13 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 	CreateStylesheet fso.BuildPath(docRoot, StylesheetName)
 
 	If IsNull(title) Then
-		log.LogDebug "Writing index file " & fso.BuildPath(docRoot, "index.html") & " ..."
-		Set indexFile = fso.OpenTextFile(fso.BuildPath(docRoot, "index.html"), ForWriting, True)
+		log.LogDebug "Writing index file " & fso.BuildPath(docRoot, IndexFileName) & " ..."
+		Set indexFile = fso.OpenTextFile(fso.BuildPath(docRoot, IndexFileName), ForWriting, True)
 		WriteHeader indexFile, "Main Page", StylesheetName
 		If projectName <> "" Then indexFile.WriteLine "<h1>" & projectName & "</h1>"
 
 		For Each relPath In Sort(doc.Keys)
-			indexFile.WriteLine "<p><a href=""" & relPath & "/index.html"">" & relPath & ".vbs</a></p>"
+			indexFile.WriteLine "<p><a href=""" & relPath & "/" & IndexFileName & """>" & relPath & ".vbs</a></p>"
 		Next
 
 		WriteFooter indexFile
@@ -883,7 +938,7 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 		dir = fso.BuildPath(docRoot, relPath)
 		CreateDirectory dir
 
-		filename = fso.BuildPath(relPath, "index.html")
+		filename = fso.BuildPath(relPath, IndexFileName)
 		log.LogDebug "Writing script documentation file " & filename & " ..."
 		Set f = fso.OpenTextFile(fso.BuildPath(docRoot, filename), ForWriting, True)
 		WriteHeader f, fso.GetFileName(relPath), css
@@ -1024,6 +1079,131 @@ Private Sub WriteSection(file, filename, heading, data, lang, sectionType, isSum
 	End If
 End Sub
 
+'! Generate a compiled HTML Help file (.chm) from the HTML output. The HTML
+'! Help Workshop must be installed, and the commandline HTML Help compiler
+'! executable hhc.exe must be present in the %PATH% for this to work.
+'!
+'! @param  chmFile  Name and path of the compiled HTML file.
+'! @param  docRoot  Root directory for the documentation files.
+'! @param  lang     Documentation language. All generated text that is not read
+'!                  from the source document(s) is created in this language.
+'!
+'! @see http://msdn.microsoft.com/en-us/library/ms670169.aspx
+Private Sub GenHTMLHelp(chmFile, docRoot, lang)
+	Dim name, projectFilename, contentsFilename, indexFilename
+	Dim target, hh, hhc
+
+	log.LogDebug "> GenHTMLHelp(" & TypeName(chmFile) & ", " & TypeName(docRoot) & ", " & TypeName(lang) & ")"
+
+	name = fso.GetBaseName(chmFile)
+
+	projectFilename  = name & ".hhp"
+	contentsFilename = name & ".hhc"
+	indexFilename    = name & ".hhk"
+
+	log.LogDebug "Creating HTML Help project, contents, and index files:" & vbNewLine _
+		& vbTab & projectFilename & vbNewLine _
+		& vbTab & contentsFilename & vbNewLine _
+		& vbTab & indexFilename
+	Set hh = CreateObject("Scripting.Dictionary")
+		hh.Add "project" , fso.OpenTextFile(projectFilename, ForWriting, True)
+		hh.Add "contents", fso.OpenTextFile(contentsFilename, ForWriting, True)
+		hh.Add "index"   , fso.OpenTextFile(indexFilename, ForWriting, True)
+
+	hh("project").WriteLine "[OPTIONS]" & vbNewLine _
+		& "Compatibility=1.1 or later" & vbNewLine _
+		& "Compiled file=" & chmFile & vbNewLine _
+		& "Contents file=" & contentsFilename & vbNewLine _
+		& "Display compile progress=Yes" & vbNewLine _
+		& "Index file=" & indexFilename & vbNewLine _
+		& "Language=" & localize(lang)("HTML_HELP_LANG") & vbNewLine & vbNewLine _
+		& "[FILES]"
+	hh("contents").WriteLine "<!DOCTYPE HTML PUBLIC ""-//IETF//DTD HTML//EN"">" & vbNewLine _
+		& "<HTML><HEAD>" & vbNewLine _
+		& "<!-- Sitemap 1.0 -->" & vbNewLine _
+		& "</HEAD><BODY>" & vbNewLine _
+		& "<OBJECT type=""text/site properties"">" & vbNewLine _
+		& "<param name=""ImageType"" value=""Folder"">" & vbNewLine _
+		& "</OBJECT>"
+	hh("index").WriteLine "<!DOCTYPE HTML PUBLIC ""-//IETF//DTD HTML//EN"">" & vbNewLine _
+		& "<HTML><HEAD>" & vbNewLine _
+		& "<!-- Sitemap 1.0 -->" & vbNewLine _
+		& "</HEAD><BODY><UL>"
+
+	CollectHelpContents docRoot, hh
+
+	'! Generate index entries from anchors.
+	For Each target In Sort(anchors.Items)
+		hh("index").WriteLine "<LI><OBJECT type=""text/sitemap"">" & vbNewLine _
+			& "<param name=""Name"" value=""" & Split(Mid(target, InStrRev(target, "#")+1), "(")(0) & """>" & vbNewLine _
+			& "<param name=""Local"" value=""" & fso.BuildPath(docRoot, target) & """>" & vbNewLine _
+			& "</OBJECT>"
+	Next
+
+	hh("project").WriteLine vbNewLine & "[INFOTYPES]" & vbNewLine
+	hh("contents").WriteLine "</BODY></HTML>"
+	hh("index").WriteLine "</UL></BODY></HTML>"
+
+	hh("index").Close
+	hh("contents").Close
+	hh("project").Close
+
+	log.LogDebug "Running HTML Help compiler hhc.exe ..."
+	Set hhc = sh.Exec("hhc.exe " & projectFilename)
+
+	Do While hhc.Status = WshRunning
+		WScript.Sleep 100
+	Loop
+
+	If Not beQuiet Then log.LogInfo hhc.StdOut.ReadAll
+
+	' Apparently hhc.exe returns 1 when finishing successfully.
+	' For whatever reason.
+	If hhc.ExitCode <> 1 Then log.LogError Trim(hhc.StdErr.ReadAll & " (" & hhc.ExitCode & ")")
+End Sub
+
+'! Recursively traverse a directory tree and record the HTML files in the
+'! project and contents file.
+'!
+'! @param  dir  The directory to process.
+'! @param  hh   Dictionary with open handles to the project, contents and
+'!              index files.
+Sub CollectHelpContents(dir, hh)
+	Dim fldr, d, f, ext, relPath, contents, title
+
+	Set fldr = fso.GetFolder(dir)
+
+	relPath = fso.BuildPath(dir, IndexFileName)
+	hh("project").WriteLine relPath
+	' ImageNumber 2 == book symbol
+	hh("contents").WriteLine "<UL><LI><OBJECT type=""text/sitemap"">" & vbNewLine _
+		& "<param name=""Name"" value=""" & GetSubject(relPath) & """>" & vbNewLine _
+		& "<param name=""Local"" value=""" & relPath & """>" & vbNewLine _
+		& "<param name=""ImageNumber"" value=""2"">" & vbNewLine _
+		& "</OBJECT>"
+
+	For Each d In fldr.SubFolders
+		CollectHelpContents fso.BuildPath(dir, d.Name), hh
+	Next
+
+	contents = ""
+	For Each f In fldr.Files
+		ext = LCase(fso.GetExtensionName(f.Name))
+		If ext = "htm" Or ext = "html" And fso.GetBaseName(f.Name) <> "index" Then
+			relPath = fso.BuildPath(dir, f.Name)
+			hh("project").WriteLine relPath
+			' ImageNumber 11 == text file symbol
+			contents = contents &  "<LI><OBJECT type=""text/sitemap"">" & vbNewLine _
+				& "<param name=""Name"" value=""" & GetSubject(f.Path) & """>" & vbNewLine _
+				& "<param name=""Local"" value=""" & relPath & """>" & vbNewLine _
+				& "<param name=""ImageNumber"" value=""11"">" & vbNewLine _
+				& "</OBJECT>" & vbNewLine
+		End If
+	Next
+	If contents <> "" Then hh("contents").Write "<UL>" & contents & "</UL>"
+	hh("contents").WriteLine "</UL>"
+End Sub
+
 ' ------------------------------------------------------------------------------
 ' HTML code generation
 ' ------------------------------------------------------------------------------
@@ -1088,9 +1268,15 @@ Private Function GenSummary(ByVal name, ByVal properties, ByVal elementType)
 		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
 		signature = "<span class=""name""><a href=""#" & name & "(" & Replace(params, " ", "") _
 			& ")"">" & name & "</a></span>(" & params & ")"
+		If properties("IsDefault") Then signature = signature & " (Default)"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "property"
 		signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>"
+		If properties.Exists("Parameters") Then
+			If UBound(properties("Parameters")) >= 0 Then signature = signature & "(" _
+				& EncodeHTMLEntities(Join(properties("Parameters"), ", ")) & ")"
+		End If
+		If properties("IsDefault") Then signature = signature & " (Default)"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "variable"
 		signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>"
@@ -1150,7 +1336,9 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "procedure"
-		signature = visibility & " <span class=""name"">" & name & "</span>(" & params & ")"
+		signature = visibility
+		If properties("IsDefault") Then signature = signature & " Default"
+		signature = signature & " <span class=""name"">" & name & "</span>(" & params & ")"
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenParameterInfo(properties("Metadata"), lang) _
@@ -1171,7 +1359,16 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 				log.LogError "Property " & name & " is neither readable nor writable. This should never happen, since this kind of property is ignored by the document parser."
 			End If
 		End If
-		signature = "<span class=""name"">" & name & "</span> (" & accessibility & ")"
+		signature = "<span class=""name"">" & name & "</span>"
+		If properties.Exists("Parameters") Then
+			If UBound(properties("Parameters")) >= 0 Then
+				params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
+				signature = signature & "(" & params & ")"
+			End If
+		End If
+		signature = signature & " (" & accessibility
+		If properties("IsDefault") Then signature = signature & ", default"
+		signature = signature & ")"
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenExceptionInfo(properties("Metadata"), lang) _
@@ -1410,31 +1607,33 @@ Private Function CreateLink(ByVal ref, filename)
 	Dim reURL, link, arrSelf, arrRef, i, sameParent, re
 
 	log.LogDebug "> CreateLink(" & TypeName(ref) & ", " & TypeName(filename) & ")"
+	log.LogDebug "  ref:      " & ref
+	log.LogDebug "  filename: " & filename
 
 	Set reURL = CompileRegExp("<(.*)>", True, True)
 	ref = reURL.Replace(ref, "$1")
 
 	If IsInternalReference(ref) Then
 		' reference is internal
-		If Left(ref, 1) = "#" Then
-			link = ">" & Mid(ref, 2)
-		Else
-			link = ">" & ref
-		End If
+		log.LogDebug "Internal reference: " & ref
 
 		filename = Replace(filename, "\", "/")
 		ref = ResolveReference(ref)
 
+		log.LogDebug "<<< " & filename
+		log.LogDebug ">>> " & ref
+
+		link = ">" & Mid(ref, InStr(ref, "#")+1)
+
 		If filename = Split(ref, "#")(0) Then
 			' reference is file-local
-			log.LogDebug "<<< " & filename
-			log.LogDebug ">>> " & ref
+			log.LogDebug "File-local reference: " & ref
 			ref = Mid(ref, Len(filename)+1)
 		Else
 			' reference is documentation-local
-			' strip parent directories from filename and ref that are common to both paths
-			log.LogDebug "<<< " & filename
-			log.LogDebug ">>> " & ref
+			log.LogDebug "File-local reference: " & ref
+			' strip those parent directories from filename and ref that are common
+			' to both paths
 			arrSelf = Split(fso.GetParentFolderName(filename), "/")
 			arrRef = Split(ref, "/")
 			i = 0
@@ -1458,6 +1657,7 @@ Private Function CreateLink(ByVal ref, filename)
 		End If
 	Else
 		' reference is external
+		log.LogDebug "External reference: " & ref
 		link = "target=""_blank"">" & ref
 	End If
 
@@ -1524,34 +1724,95 @@ Private Sub CheckConsistency(name, params, tags, funcType)
 End Sub
 
 '! Check for mismatches between the documented and the actual parameters of a
-'! procedure or function. Logs a warning if there is a mismatch.
+'! procedure or function. In case of a mismatch a warning is logged.
 '!
 '! @param  codeParams  Array with the actual parameters from the code.
 '! @param  docParams   Array with the documented parameters.
 '! @param  name        Name of the procedure or function.
 Private Sub CheckParameterMismatch(ByVal codeParams, ByVal docParams, ByVal name)
-	Dim cPrms, dPrms, param
+	Dim missing, undocumented
 
-	Set cPrms = CreateObject("Scripting.Dictionary")
-	For Each param In codeParams
-		cPrms.Add LCase(param), True
-	Next
+	' docParams that are not present in codeParams are missing (not implemented)
+	missing = GetMissing(docParams, codeParams)
+	' codeParams that are not present in docParams are undocumented
+	undocumented = GetMissing(codeParams, docParams)
 
-	Set dPrms = CreateObject("Scripting.Dictionary")
-	For Each param In docParams
-		dPrms.Add Split(LCase(param & " "))(0), True
-	Next
+	If Not beQuiet Then
+		If UBound(undocumented) > -1 Then log.LogWarning "Undocumented parameters in " & name & "(): " & Join(undocumented, ", ")
+		If UBound(missing) > -1 Then log.LogWarning "Parameters not implemented in " & name & "(): " & Join(missing, ", ")
+	End If
+End Sub
 
-	For Each param In cPrms.Keys
-		If dPrms.Exists(param) Then
-			cPrms.Remove(param)
-			dPrms.Remove(param)
+'! Check the consistency of actual and documented parameters of a property. In
+'! case of a mismatch a warning is logged.
+'!
+'! For a readable property, both parameter sets must match. For a writable
+'! property there must be one additional codeParam (the value that will be
+'! assigned to the property).
+'!
+'! @param  codeParams  Array with the actual parameters from the code.
+'! @param  docParams   Array with the documented parameters.
+'! @param  name        Name of the procedure or function.
+Private Sub CheckPropParamConsistency(codeParams, docParams, name, isReadable)
+	Dim missing, undocumented
+
+	' docParams that are not present in codeParams are missing (not implemented)
+	missing = GetMissing(docParams, codeParams)
+	' codeParams that are not present in docParams are undocumented
+	undocumented = GetMissing(codeParams, docParams)
+
+	If Not beQuiet Then
+		If Not isReadable Then
+			' Setter functions for properties have one parameter (the value that will
+			' be assigned to the property) that doesn't require documentation.
+			If UBound(undocumented) > 0 Then log.LogWarning "Undocumented parameter in setter for property " & name & ": " & Join(undocumented, ", ")
+			If UBound(missing) > -1 Then log.LogWarning "Parameter not implemented in setter for property " & name & ": " & Join(missing, ", ")
+		Else
+			If UBound(undocumented) > -1 Then log.LogWarning "Undocumented parameter in getter for property " & name & ": " & Join(undocumented, ", ")
+			If UBound(missing) > -1 Then log.LogWarning "Parameter not implemented in getter for property " & name & ": " & Join(missing, ", ")
+		End If
+	End If
+End Sub
+
+'! Return an array with those elements from arr1 that are not present in arr2.
+'! Elements of both arrays are assumed to be strings. Comparison between the
+'! elements is case-insensitive. Empty parameters are treated as empty arrays.
+'!
+'! @param  arr1   An array.
+'! @param  arr2   Another array.
+'! @return Array with elements from arr1 that are missing from arr2.
+Private Function GetMissing(arr1, arr2)
+	Dim missing, e1, e2, found
+
+	log.LogDebug "> GetMissing(" & TypeName(arr1) & ", " & TypeName(arr2) & ")"
+
+	missing = Array()
+
+	If IsEmpty(arr1) Then arr1 = Array()
+	If IsEmpty(arr2) Then arr2 = Array()
+
+	' arr1 and arr2 may contain lists of parameter names as well as lists of
+	' @param tags, which consist not only of the parameter names, but also of
+	' the description associated with the name. Splitting the array elements
+	' makes sure that only parameter names are used in the comparison.
+	For Each e1 In arr1
+		e1 = Split(Trim(e1))(0)
+		found = False
+		For Each e2 In arr2
+			e2 = Split(Trim(e2))(0)
+			If LCase(e1) = LCase(e2) Then
+				found = True
+				Exit For
+			End If
+		Next
+		If Not found Then
+			ReDim Preserve missing(UBound(missing)+1)
+			missing(UBound(missing)) = e1
 		End If
 	Next
 
-	If cPrms.Count > 0 And Not beQuiet Then log.LogWarning "Undocumented parameters in " & name & "(): " & Join(cPrms.Keys, ", ")
-	If dPrms.Count > 0 And Not beQuiet Then log.LogWarning "Parameters not implemented in " & name & "(): " & Join(dPrms.Keys, ", ")
-End Sub
+	GetMissing = missing
+End Function
 
 '! Check for return value mismatches. Functions must have a return value, subs
 '! must not have a return value. In case of a mismatch a warning is logged.
@@ -1678,6 +1939,27 @@ Private Function CheckIfPrivate(ByVal classifier)
 	End If
 End Function
 
+'! Extract the parameter names from a given parameter string.
+'!
+'! @param  str  The string to extract the parameter names from.
+'! @return Array with the parameter names.
+Private Function ExtractParameterNames(ByVal str)
+	str = Trim(str)
+	If Left(str, 1) = "(" And Right(str, 1) = ")" Then
+		str = Mid(str, 2, Len(str)-2)  ' remove enclosing parentheses
+	End If
+
+	If Len(str) > 0 Then
+		str = Replace(str, vbTab, " ")
+		str = Replace(str, "ByVal ", "", 1, vbReplaceAll, vbTextCompare)
+		str = Replace(str, "ByRef ", "", 1, vbReplaceAll, vbTextCompare)
+		str = Replace(str, " ", "")
+		ExtractParameterNames = Split(str, ",")
+	Else
+		ExtractParameterNames = Array()
+	End If
+End Function
+
 '! Replace special characters (and some particular character sequences) with
 '! their respective HTML entity encoding.
 '!
@@ -1769,7 +2051,7 @@ Private Function EncodeHTMLEntities(ByVal text)
 	text = Replace(text, "µ", "&micro;")
 	' quotation marks
 	text = Replace(text, """", "&quot;")
-	text = Replace(text, "'", "&apos;")
+	'text = Replace(text, "'", "&apos;")  ' Don't encode apostrophes, because HTML Help doesn't understand the encoded entity.
 	text = Replace(text, "«", "&laquo;")
 	text = Replace(text, "»", "&raquo;")
 	text = Replace(text, "‹", "&lsaquo;")
@@ -1852,7 +2134,9 @@ Private Function MangleBlankLines(ByVal str, ByVal number)
 	MangleBlankLines = str
 End Function
 
-'! Extract named anchors from the documentation data structure.
+'! Extract named anchors from the documentation data structure. The anchor name
+'! is either the bare name of the target or the combination filename#name.
+'! Anchor names never contain a parameter list, only the anchor targets do.
 '!
 '! @param  doc  The documentation data.
 '! @return A dictionary that maps unique identifiers to the docRoot-relative
@@ -1866,7 +2150,7 @@ Private Function ExtractAnchors(doc)
 	Set anchors = CreateObject("Scripting.Dictionary")
 
 	For Each dir In doc.Keys
-		filename = fso.BuildPath(dir, "index.html")
+		filename = fso.BuildPath(dir, IndexFileName)
 		log.LogDebug "Extracting anchors of " & filename
 
 		' enumerate non-class targets
@@ -1874,6 +2158,7 @@ Private Function ExtractAnchors(doc)
 			For Each name In doc(dir)(elementType).Keys
 				key = name
 				key = AddAnchor(anchors, key, filename & "#" & key, filename & "#" & name)
+				' for procedures/functions append the arguments to the target
 				If elementType = "Procedures" Then anchors(key) = anchors(key) _
 					& "(" & Join(doc(dir)("Procedures")(name)("Parameters"), ",") & ")"
 			Next
@@ -1994,14 +2279,19 @@ Private Function ResolveReference(ref)
 	log.LogDebug "  ref: " & ref
 
 	If Left(ref, 1) = "#" Then ref = Mid(ref, 2)
+	' anchors.Keys never contains entries with argument lists
+	If InStr(ref, "(") > 0 Then ref = Left(ref, InStr(ref, "(")-1)
+	' anchors.Keys contains only lowercase entries
 	ref = LCase(ref)
 
-	log.LogDebug "Checking for exact match ..."
+	' first check if the given anchor has an exact match in the anchors.Keys
 	If anchors.Exists(ref) Then
+		log.LogDebug "Exact match for " & ref & ": " & anchors(ref)
 		ResolveReference = anchors(ref)
-	Else
+	Else ' if no exact match is found: check for partial matches
 		matches = Array()
 		log.LogDebug "Checking keys ..."
+		' check if the anchors keys contain an entry that ends with ref
 		For Each key In anchors.Keys
 			If Right(key, Len(ref)) = ref Then
 				log.LogDebug "Found match: " & key
@@ -2013,8 +2303,9 @@ Private Function ResolveReference(ref)
 		If UBound(matches) < 0 Then
 			' no match found => check values to make sure
 			log.LogDebug "Checking values ..."
+			' check if any anchor target contains the (sub)string ref
 			For Each anchor In anchors.Items
-				If InStr(1, anchor, ref, vbTextCompare) > 0 Then
+				If InStr(1, LCase(anchor), ref, vbTextCompare) > 0 Then
 					log.LogDebug "Found match: " & anchor
 					ReDim preserve matches(UBound(matches)+1)
 					matches(UBound(matches)) = anchor
@@ -2032,6 +2323,27 @@ Private Function ResolveReference(ref)
 			WScript.Quit(1)
 		End Select
 	End If
+End Function
+
+'! Return the subject from the HTML file with the given filename. "Subject"
+'! here refers to the first heading (text between <h1> and </h1>) in the HTML
+'! file. If no match is found, an empty string is returned.
+'!
+'! @param  filename   The name of the HTML file
+'! @return The title from the HTML file.
+Private Function GetSubject(filename)
+	Dim f, content, re, m
+
+	GetSubject = ""
+
+	Set f = fso.OpenTextFile(filename, ForReading)
+	content = f.ReadAll
+	f.Close
+
+	Set re = CompileRegExp("<h1>(.*?)</h1>", True, False) ' .Global=False => first match wins
+	For Each m In re.Execute(content)
+		GetSubject = Trim(m.SubMatches(0))
+	Next
 End Function
 
 '! Sort a given array in ascending order. This is merely a wrapper for
@@ -2144,13 +2456,16 @@ End Function
 '!
 '! @param  exitCode   The exit code.
 Private Sub PrintUsage(exitCode)
-	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/d] [/a] [/q] [/l:LANG] [/p:NAME] /i:SOURCE /o:DOC_DIR" & vbNewLine _
+	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/d] [/a] [/q] [/l:LANG] [/p:NAME] [/h:CHM_FILE]" & vbNewLine _
+		& vbTab & vbTab & "/i:SOURCE /o:DOC_DIR" & vbNewLine _
 		& vbTab & WScript.ScriptName & " /?" & vbNewLine & vbNewLine _
 		& vbTab & "/?" & vbTab & "Print this help." & vbNewLine _
 		& vbTab & "/a" & vbTab & "Generate documentation for all elements (public and private)." & vbNewLine _
 		& vbTab & vbTab & "Without this option, documentation is generated for public" & vbNewLine _
 		& vbTab & vbTab & "elements only." & vbNewLine _
 		& vbTab & "/d" & vbTab & "Enable debug messages. (you really don't want this)" & vbNewLine _
+		& vbTab & "/h" & vbTab & "Create CHM_FILE in addition to normal HTML output. (requires" & vbNewLine _
+		& vbTab & vbTab & "HTML Help Workshop)" & vbNewLine _
 		& vbTab & "/i" & vbTab & "Read input files from SOURCE. Can be either a file or a" & vbNewLine _
 		& vbTab & vbTab & "directory. (required)" & vbNewLine _
 		& vbTab & "/l" & vbTab & "Create localized output [" & Join(Sort(localize.Keys), ",") & "]. Default language is " & DefaultLanguage & "." & vbNewLine _

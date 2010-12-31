@@ -20,11 +20,15 @@ See COPYING.txt.
 Requirements
 ------------
 VBSdoc uses my Logger class [3] for displaying messages.
+For generation of compiled HTML Help files, HTML Help Workshop [4] must
+be installed and the HTML Help compiler hhc.exe must be in the %PATH%
+of the user running VBSdoc.
 
 
 Usage
 -----
-VBSdoc.vbs [/d] [/a] [/q] [/l:LANG] [/p:NAME] /i:SOURCE /o:DOC_DIR
+VBSdoc.vbs [/d] [/a] [/q] [/l:LANG] [/p:NAME] [/h:CHM_FILE]
+           /i:SOURCE /o:DOC_DIR
 VBSdoc.vbs /?
 
   /?      Print this help.
@@ -32,6 +36,8 @@ VBSdoc.vbs /?
           Without this option, documentation is generated for public
           elements only.
   /d      Enable debug messages. (you really don't want this)
+  /h      Create CHM_FILE in addition to normal HTML output. (requires
+          HTML Help Workshop)
   /i      Read input files from SOURCE. Can be either a file or a
           directory. (required)
   /l      Create localized output [de,en]. Default language is en.
@@ -121,6 +127,32 @@ the line with the element. Examples:
 
                   '! Some other comment <- not part of BAR documentation
 
+Properties are somewhat special, since they can consist of up to three
+functions/procedures (Get/Let/Set). Although it is possible to add doc
+comments to each function of a property, I'd recommend to treat all
+functions of a property as a single item and add the doc comments to
+just one function. Example:
+
+  '! Property Foo of some class.
+  '!
+  '! @param  index  Index for values of Foo.
+  Public Property Get Foo(index)
+    Foo = foo_(index)
+  End Property
+
+  Public Property Let Foo(index, val)
+    foo_(index) = val
+  End Property
+
+  '! Property Bar of the same class.
+  Public Property Get Bar
+    Set Bar = bar_
+  End Property
+
+  Public Property Set Bar(obj)
+    Set bar_ = obj
+  End Property
+
 
 Tags
 ----
@@ -187,8 +219,9 @@ Complete list of supported tags:
             @param  NAME  DESCRIPTION
           Where @param-keyword, parameter name and description can be
           separated by any amount of whitespace (except for newlines,
-          of course). Valid for functions/procedures with arguments.
-          Multiple tags per documented function/procedure are allowed.
+          of course). Valid for functions, procedures, and properties
+          with arguments. Multiple tags per documented item are
+          allowed.
 
 @raise    Description of the errors a function or procedure might raise.
           Optional, multiple tags per documented element are allowed.
@@ -223,3 +256,4 @@ References
 [1] http://vbdox.sourceforge.net/
 [2] http://www.doxygen.org/
 [3] http://www.planetcobalt.net/download/LoggerClass-1.2.zip
+[4] http://msdn.microsoft.com/en-us/library/ms670169.aspx

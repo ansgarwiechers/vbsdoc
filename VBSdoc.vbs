@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2010-12-31
-'! @version 2.0
+'! @date    2011-01-13
+'! @version 2.1
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -880,15 +880,22 @@ Private Function ProcessComments(ByVal comments)
 	Set re = CompileRegExp("\s+$", True, False)
 	tags("@details") = re.Replace(tags("@details"), "")
 
-	' If no short description was given, set it to the first full sentence (or
-	' the first line, whichever is the shorter match) of the long description.
+	' If no short description was given, set it to the first sentence of the
+	' long description (or the whole long description if the latter consists
+	' of just a single sentence).
 	' If no long description was given, set it to the short description.
 	' Do nothing if neither short nor long description were given.
 	If Not tags.Exists("@brief") And tags.Exists("@details") Then
-		Set re = CompileRegExp("([.!?\n]).*", True, True)
-		tags.Add "@brief", Replace(re.Replace(tags("@details"), "$1"), vbLf, "")
-		re.Pattern = "[,;:]$"
-		tags("@brief") = re.Replace(tags("@brief"), ".")
+		' First replace ellipses, so they won't get in the way of detecting the
+		' end of a sentence.
+		Set re = CompileRegExp("\.{3,}", True, True)
+		tags("@details") = re.Replace(tags("@details"), "…")
+		' Set the short description to the first sentence of the long description.
+		re.Pattern = "([\s\S]*?[.!?])\s+[\s\S]*"
+		tags.Add "@brief", re.Replace(tags("@details"), "$1")
+		' Set the short description to the full long description if no first
+		' sentence was matched.
+		If tags("@brief") = "" Then tags("@brief") = tags("@details")
 	ElseIf tags.Exists("@brief") And Not tags.Exists("@details") Then
 		tags.Add "@details", tags("@brief")
 	End If
@@ -1220,8 +1227,8 @@ Private Sub WriteHeader(outFile, title, stylesheet)
 	log.LogDebug "  stylesheet: " & stylesheet
 
 	If projectName <> "" Then title = projectName & ": " & title
-	outFile.WriteLine "<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Frameset//EN""" & vbNewLine _
-		& vbTab & """http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd"">" & vbNewLine _
+	outFile.WriteLine "<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN""" & vbNewLine _
+		& vbTab & """http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">" & vbNewLine _
 		& "<html>" & vbNewLine & "<head>" & vbNewLine _
 		& "<title>" & title & "</title>" & vbNewLine _
 		& "<meta name=""date"" content=""" & FormatDate(Now) & """ />" & vbNewLine _
@@ -1261,25 +1268,28 @@ Private Function GenSummary(ByVal name, ByVal properties, ByVal elementType)
 	Select Case LCase(elementType)
 	Case "constant"
 		Set re = CompileRegExp("^&h([0-9a-f]+)$", True, True)
-		signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>: " _
-			& re.Replace(Trim(properties("Value")), "0x$1")
+		signature = "<code><span class=""name""><a href=""#" & name & """>" & name _
+			& "</a></span>: " & re.Replace(Trim(properties("Value")), "0x$1") & "</code>"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "procedure"
 		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
-		signature = "<span class=""name""><a href=""#" & name & "(" & Replace(params, " ", "") _
-			& ")"">" & name & "</a></span>(" & params & ")"
-		If properties("IsDefault") Then signature = signature & " (Default)"
+		signature = "<code><span class=""name""><a href=""#" & CanonicalizeID(name _
+			& "(" & params & ")") & """>" & name & "</a></span>(" & params & ")</code>"
+		If properties("IsDefault") Then signature = signature & "<br/>default"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "property"
-		signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>"
+		signature = "<code><span class=""name""><a href=""#" & CanonicalizeID(name) _
+			& """>" & name & "</a></span>"
 		If properties.Exists("Parameters") Then
 			If UBound(properties("Parameters")) >= 0 Then signature = signature & "(" _
 				& EncodeHTMLEntities(Join(properties("Parameters"), ", ")) & ")"
 		End If
-		If properties("IsDefault") Then signature = signature & " (Default)"
+		signature = signature & "</code>"
+		If properties("IsDefault") Then signature = signature & "<br/>default"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "variable"
-		signature = "<span class=""name""><a href=""#" & name & """>" & name & "</a></span>"
+		signature = "<code><span class=""name""><a href=""#" & name & """>" & name _
+			& "</a></span></code>"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case Else
 		log.LogError "Cannot generate summary information for unknown element type " & elementType & "."
@@ -1316,9 +1326,9 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 
 	If LCase(elementType) = "procedure" Then
 		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
-		heading = "<a name=""" & name & "(" & Replace(params, " ", "") & ")""></a>" & name
+		heading = "<a id=""" & CanonicalizeID(name & "(" & params & ")") & """></a>" & name
 	Else
-		heading = "<a name=""" & name & """></a>" & name
+		heading = "<a id=""" & CanonicalizeID(name) & """></a>" & name
 	End If
 
 	If properties("IsPrivate") Then
@@ -1330,15 +1340,15 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 	Select Case LCase(elementType)
 	Case "constant"
 		Set re = CompileRegExp("^&h([0-9a-f]+)$", True, True)
-		signature = visibility & " Const <span class=""name"">" & name & "</span> = " _
-			& re.Replace(Trim(properties("Value")), "0x$1")
+		signature = "<code>" & visibility & " Const <span class=""name"">" & name _
+			& "</span> = " & re.Replace(Trim(properties("Value")), "0x$1") & "</code>"
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "procedure"
-		signature = visibility
-		If properties("IsDefault") Then signature = signature & " Default"
-		signature = signature & " <span class=""name"">" & name & "</span>(" & params & ")"
+		signature = "<code>" & visibility
+		If properties("IsDefault") Then signature = signature & "<br/>default"
+		signature = signature & " <span class=""name"">" & name & "</span>(" & params & ")</code>"
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenParameterInfo(properties("Metadata"), lang) _
@@ -1359,22 +1369,21 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 				log.LogError "Property " & name & " is neither readable nor writable. This should never happen, since this kind of property is ignored by the document parser."
 			End If
 		End If
-		signature = "<span class=""name"">" & name & "</span>"
+		signature = "<code><span class=""name"">" & name & "</span>"
 		If properties.Exists("Parameters") Then
 			If UBound(properties("Parameters")) >= 0 Then
 				params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
 				signature = signature & "(" & params & ")"
 			End If
 		End If
-		signature = signature & " (" & accessibility
+		signature = signature & "</code><br/>" & accessibility
 		If properties("IsDefault") Then signature = signature & ", default"
-		signature = signature & ")"
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenExceptionInfo(properties("Metadata"), lang) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "variable"
-		signature = visibility & " <span class=""name"">" & name & "</span>"
+		signature = "<code>" & visibility & " <span class=""name"">" & name & "</span></code>"
 		GenDetails = GenDetailsHeading(heading, signature) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
@@ -1426,7 +1435,7 @@ End Function
 '!                  being created.
 '! @return HTML snippet with the references information.
 Private Function GenReferencesInfo(tags, lang, filename)
-	Dim ref
+	Dim ref, re, m
 	Dim info : info = ""
 
 	log.LogDebug "> GenReferencesInfo(" & TypeName(tags) & ", " & TypeName(lang) & ", " & TypeName(filename) & ")"
@@ -1434,7 +1443,11 @@ Private Function GenReferencesInfo(tags, lang, filename)
 	If tags.Exists("@see") Then
 		info = "<h4>" & EncodeHTMLEntities(localize(lang)("SEE_ALSO")) & ":</h4>" & vbNewLine
 		For Each ref In tags("@see")
-			info = info & "<p class=""value"">" & CreateLink(ref, filename) & "</p>" & vbNewLine
+			Set re = CompileRegExp("(\S+)(\s+.*)?", True, True)
+			For Each m In re.Execute(ref)
+				info = info & "<p class=""value"">" & CreateLink(m.SubMatches(0), filename) _
+					& m.SubMatches(1) & "</p>" & vbNewLine
+			Next
 		Next
 	End If
 
@@ -1476,7 +1489,7 @@ Private Function GenSummaryInfo(name, tags)
 
 	log.LogDebug "> GenSummaryInfo(" & TypeName(name) & ", " & TypeName(tags) & ")"
 
-	summary = "<p class=""function""><code>" & name & "</code></p>" & vbNewLine
+	summary = "<p class=""function"">" & name & "</p>" & vbNewLine
 	If tags.Exists("@brief") Then summary = summary & "<p class=""description"">" _
 		& EncodeHTMLEntities(tags("@brief")) & "</p>" & vbNewLine
 	GenSummaryInfo = summary
@@ -1489,8 +1502,8 @@ End Function
 '! @param  signature The signature of the procedure, variable or constant.
 '! @return HTML snippet with the heading and signature.
 Private Function GenDetailsHeading(heading, signature)
-	GenDetailsHeading = "<h3>" & heading & "</h3>" & vbNewLine & "<p class=""function""><code>" _
-		& signature & "</code></p>" & vbNewLine
+	GenDetailsHeading = "<h3>" & heading & "</h3>" & vbNewLine & "<p class=""function"">" _
+		& signature & "</p>" & vbNewLine
 End Function
 
 '! Generate detail information from the @detail tag.
@@ -1628,10 +1641,10 @@ Private Function CreateLink(ByVal ref, filename)
 		If filename = Split(ref, "#")(0) Then
 			' reference is file-local
 			log.LogDebug "File-local reference: " & ref
-			ref = Mid(ref, Len(filename)+1)
+			ref = "#" & CanonicalizeID(Mid(ref, Len(filename)+2))
 		Else
 			' reference is documentation-local
-			log.LogDebug "File-local reference: " & ref
+			log.LogDebug "Documentation-local reference: " & ref
 			' strip those parent directories from filename and ref that are common
 			' to both paths
 			arrSelf = Split(fso.GetParentFolderName(filename), "/")
@@ -1654,11 +1667,13 @@ Private Function CreateLink(ByVal ref, filename)
 			log.LogDebug ">>> " & Join(Slice(arrRef, i, UBound(arrRef)), "/")
 			Set re = CompileRegExp("[^/]+", True, True)
 			ref = re.Replace(Join(Slice(arrSelf, i, UBound(arrSelf)), "/"), "..") & "/" & Join(Slice(arrRef, i, UBound(arrRef)), "/")
+			i = InStrRev(ref, "#")
+			If i > 0 Then ref = Mid(ref, 1, i) & CanonicalizeID(Mid(ref, i+1))
 		End If
 	Else
 		' reference is external
 		log.LogDebug "External reference: " & ref
-		link = "target=""_blank"">" & ref
+		link = " target=""_blank"">" & ref
 	End If
 
 	CreateLink = "<a href=""" & ref & """" & link & "</a>"
@@ -1966,6 +1981,8 @@ End Function
 '! @param  text  The text to encode.
 '! @return The encoded text.
 Private Function EncodeHTMLEntities(ByVal text)
+	Dim re
+
 	' Ampersand (&) must be encoded first.
 	text = Replace(text, "&", "&amp;")
 
@@ -1975,10 +1992,12 @@ Private Function EncodeHTMLEntities(ByVal text)
 	text = Replace(text, "->", "&rarr;")
 	text = Replace(text, "<=>", "&hArr;")
 	text = Replace(text, "<=", "&lArr;")
-	text = Replace(text, "=>", "&&rArr;")
-	text = Replace(text, "...", "…")
+	text = Replace(text, "=>", "&rArr;")
 	text = Replace(text, "(c)", "©", 1, vbReplaceAll, vbTextCompare)
 	text = Replace(text, "(r)", "®", 1, vbReplaceAll, vbTextCompare)
+	' treat sequences of 3 or more dots as ellipses
+	Set re = CompileRegExp("\.{3,}", True, True)
+	text = re.Replace(text, "…")
 
 	' encode all other HTML entities
 	text = Replace(text, "ä", "&auml;")
@@ -2346,6 +2365,40 @@ Private Function GetSubject(filename)
 	Next
 End Function
 
+'! Ensure that an anchor's ID conforms to the XHTML specifications. Invalid
+'! characters are replaced by underscores.
+'!
+'! @param  id   The ID to canonicalize.
+'! @return The canonicalized ID.
+'!
+'! @see http://www.w3.org/TR/xhtml1/guidelines.html#C_8
+'! @see http://www.w3.org/TR/html4/types.html#h-6.2
+Private Function CanonicalizeID(ByVal id)
+	Dim re
+
+	' Remove spaces.
+	id = Replace(id, " ", "")
+
+	' Avoid trailing underscores from parentheses. This can be done without
+	' problem, because an identifier must be unique at file-level anyway.
+	If Right(id, 1) = ")" Then id = Mid(id, 1, Len(id)-1)
+	If Right(id, 1) = "(" Then id = Mid(id, 1, Len(id)-1)
+
+	' Replace opening parentheses with colons. Replace all other invalid
+	' characters (e.g. commas in parameter lists) with dots, because colons
+	' and dots aren't valid characters for identifiers, so we won't create
+	' any conflicts here (e.g. foo_bar() vs. foo(bar)).
+	id = Replace(id, "(", ":")
+	Set re = CompileRegExp("[^A-Za-z0-9:_.-]", True, True)
+	id = re.Replace(id, ".")
+
+	' No need to verify if the first character is an ASCII letter, because the
+	' requirements for VBScript identifiers already enforce this in the source
+	' code (i.e. the script won't run otherwise).
+
+	CanonicalizeID = id
+End Function
+
 '! Sort a given array in ascending order. This is merely a wrapper for
 '! QuickSort(), so that I can simply call Sort(array) without having to
 '! specify the boundaries in the inital function call. This is also to
@@ -2468,8 +2521,8 @@ Private Sub PrintUsage(exitCode)
 		& vbTab & vbTab & "HTML Help Workshop)" & vbNewLine _
 		& vbTab & "/i" & vbTab & "Read input files from SOURCE. Can be either a file or a" & vbNewLine _
 		& vbTab & vbTab & "directory. (required)" & vbNewLine _
-		& vbTab & "/l" & vbTab & "Create localized output [" & Join(Sort(localize.Keys), ",") & "]. Default language is " & DefaultLanguage & "." & vbNewLine _
-		& vbTab & "/o" & vbTab & "Generate output files in DOC_DIR. (required)" & vbNewLine _
+		& vbTab & "/l" & vbTab & "Generate localized output [" & Join(Sort(localize.Keys), ",") & "]. Default language is " & DefaultLanguage & "." & vbNewLine _
+		& vbTab & "/o" & vbTab & "Create output files in DOC_DIR. (required)" & vbNewLine _
 		& vbTab & "/p" & vbTab & "Use NAME as the project name." & vbNewLine _
 		& vbTab & "/q" & vbTab & "Don't print warnings. Ignored if debug messages are enabled."
 	WScript.Quit exitCode

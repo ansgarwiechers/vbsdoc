@@ -19,10 +19,10 @@ See COPYING.txt.
 
 Requirements
 ------------
-VBSdoc uses my Logger class [3] for displaying messages.
-For generation of compiled HTML Help files, HTML Help Workshop [4] must
-be installed and the HTML Help compiler hhc.exe must be in the %PATH%
-of the user running VBSdoc.
+- VBSdoc uses my Logger class [3] for displaying messages.
+- For generation of compiled HTML Help files, HTML Help Workshop [4] must
+  be installed and the HTML Help compiler hhc.exe must be in the %PATH%
+  of the user running VBSdoc.
 
 
 Usage
@@ -40,15 +40,15 @@ VBSdoc.vbs /?
           HTML Help Workshop)
   /i      Read input files from SOURCE. Can be either a file or a
           directory. (required)
-  /l      Create localized output [de,en]. Default language is en.
-  /o      Generate output files in DOC_DIR. (required)
+  /l      Generate localized output [de,en]. Default language is en.
+  /o      Create output files in DOC_DIR. (required)
   /p      Use NAME as the project name.
   /q      Don't print warnings. Ignored if debug messages are enabled.
 
 
 Output Format
 -------------
-The documentation is generated in HTML format inside the DOC_DIR
+The documentation is generated in XHTML format inside the DOC_DIR
 directory (see above). For each source file a sub-directory with the
 same name (without the extension "vbs") is created, that contains one
 or more documentation files. One documentation file for the global
@@ -166,7 +166,7 @@ comment line appear. A doc comment like this:
   '!
   '! @other_tag Some other text.
 
-is identical to a doc comment like this:
+generates the same output as a doc comment like this:
 
   '! @tag This is some text.
   '! @other_tag Some other text.
@@ -183,15 +183,16 @@ in the documentation. Bulleted lists are also supported in detail comments:
 
 Example of a properly doc-commented function:
 
-'! Return a slice (sub-array) from a given array.
+'! Return a slice (sub-array) from a given source array.
 '!
+'! @param  arr    The source array.
 '! @param  first  Index of the beginning of the slice.
 '! @param  last   Index of the end of the slice.
 '! @return A slice from the given array.
 '!
 '! @see http://somepage.example.org/
 Function Slice(arr, first, last)
-...
+  '...
 End Function
 
 Complete list of supported tags:
@@ -232,10 +233,11 @@ Complete list of supported tags:
           appear more than once.
 
 @see      Link to some other resource (external or internal). External
-          references should be given as URLs (e.g. http://example.org/).
-          As for internal references, right now only references within
-          the same documentation file are supported. Optional, multiple
-          tags per documented element are allowed.
+          references should be given as URLs (e.g. http://example.org/)
+          and may be enclosed in angular brackets. Descriptive text may
+          be placed after the reference:
+            @see  REF  DESCRIPTION
+          Optional, multiple tags per documented element are allowed.
 
 @todo     An unfinished task. @todo doc comments are somewhat special,
           as they are extracted from source files before the processing

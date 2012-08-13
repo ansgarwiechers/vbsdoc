@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2011-01-13
-'! @version 2.1
+'! @date    2012-08-14
+'! @version 2.2
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -21,7 +21,7 @@
 
 Option Explicit
 
-Import "LoggerClass.vbs"
+Import "CLogger.vbs"
 
 ' Some symbolic constants for internal use.
 Private Const ForReading  = 1
@@ -45,7 +45,7 @@ Private Const DefaultLanguage = "en"
 ' Initialize global objects.
 Private fso : Set fso = CreateObject("Scripting.FileSystemObject")
 Private sh  : Set sh = CreateObject("WScript.Shell")
-Private log : Set log = New Logger
+Private log : Set log = New CLogger
 
 '! Match line-continuations.
 Private reLineCont : Set reLineCont = CompileRegExp("[ \t]+_\n[ \t]*", True, True)
@@ -682,20 +682,24 @@ Private Function GetPropertyDef(ByRef code)
 		d.Add "Metadata", ProcessComments(writable(name)(0))
 
 		CheckPropParamConsistency writable(name)(1), d("Metadata")("@param"), name, False
-		' No readable property, so we need to eliminate the additional "value"
-		' parameter from the parameter list. Since there should be only a single
-		' undocumented parameter, we're removing that one from the array.
+
+		' Writable properties have at least one parameter (the value passed to the
+		' property). However, that parameter should not be part of the interface
+		' documentation, and should thus be removed from the parameter list. Since
+		' a writable property should have exactly one undocumented parameter (the
+		' one for passing values), we add all except for the first undocumented
+		' parameter to the property's parameter list.
 		undocumented = GetMissing(writable(name)(1), d("Metadata")("@param"))
 		If UBound(undocumented) >= 0 Then
 			arr = Array()
 			For Each param In writable(name)(1)
 				If LCase(param) <> LCase(undocumented(0)) Then
 					ReDim Preserve arr(UBound(arr)+1)
-					arr(UBound(arr)) = p1
+					arr(UBound(arr)) = param
 				End If
 			Next
 		Else
-			arr = writable(name)(i)
+			arr = writable(name)(1)
 		End If
 		d.Add "Parameters", arr
 
@@ -2251,19 +2255,21 @@ Private Function AddAnchor(ByRef dict, ByVal key, ByVal altKey, ByVal anchor)
 			log.LogError "Name conflict: " & key & " and " & altKey & " already exist."
 			WScript.Quit(1)
 		Else
-			Set re = CompileRegExp("\(.*\)$", True, True)
-			newKey = LCase(re.Replace(Replace(Trim(dict(key)), ".html", "", 1, vbReplaceAll, vbTextCompare), ""))
-			If dict.Exists(newKey) Then
-				log.LogError "Cannot remap anchor of key " & key & ". Key " & newKey & " already exists."
-				WScript.Quit(1)
-			ElseIf newKey = altKey Then
-				log.LogError "Name conflict: existing entry " & key & " would be remapped to alternative key name " & altKey & "."
-				WScript.Quit(1)
-			ElseIf Not IsNull(dict(key)) Then
-				' Moving the existing entry is only necessary if this is the first conflict
-				' with this name.
-				dict.Add newKey, dict(key)
-				dict(key) = Null  ' indicator that there already has been a name conflict
+			If Not IsNull(dict(key)) Then
+				' Mark key as ambiguous by moving its value to newKey and setting key
+				' to Null.
+				Set re = CompileRegExp("\(.*\)$", True, True)
+				newKey = LCase(re.Replace(Replace(Trim(dict(key)), ".html", "", 1, vbReplaceAll, vbTextCompare), ""))
+				If dict.Exists(newKey) Then
+					log.LogError "Cannot remap anchor of key " & key & ". Key " & newKey & " already exists."
+					WScript.Quit(1)
+				ElseIf newKey = altKey Then
+					log.LogError "Name conflict: existing entry " & key & " would be remapped to alternative key name " & altKey & "."
+					WScript.Quit(1)
+				Else
+					dict.Add newKey, dict(key)
+					dict(key) = Null  ' indicator that there already has been a name conflict
+				End If
 			End If
 		End If
 
@@ -2277,7 +2283,7 @@ End Function
 '!
 '! @param  ref  The reference to check.
 '! @return True if the reference is internal, otherwise False.
-Private Function IsInternalReference(ref)
+Private Function IsInternalReference(ByVal ref)
 	IsInternalReference = Not IsNull(ResolveReference(ref))
 End Function
 
@@ -2291,7 +2297,7 @@ End Function
 '!
 '! @param  ref  The reference to check.
 '! @return The path to the referenced item or Null if no match was found.
-Private Function ResolveReference(ref)
+Private Function ResolveReference(ByVal ref)
 	Dim key, anchor, matches
 
 	log.LogDebug "> ResolveReference(" & TypeName(ref) & ")"
@@ -2314,7 +2320,7 @@ Private Function ResolveReference(ref)
 		For Each key In anchors.Keys
 			If Right(key, Len(ref)) = ref Then
 				log.LogDebug "Found match: " & key
-				ReDim preserve matches(UBound(matches)+1)
+				ReDim Preserve matches(UBound(matches)+1)
 				matches(UBound(matches)) = anchors(key)
 			End If
 		Next
@@ -2326,7 +2332,7 @@ Private Function ResolveReference(ref)
 			For Each anchor In anchors.Items
 				If InStr(1, LCase(anchor), ref, vbTextCompare) > 0 Then
 					log.LogDebug "Found match: " & anchor
-					ReDim preserve matches(UBound(matches)+1)
+					ReDim Preserve matches(UBound(matches)+1)
 					matches(UBound(matches)) = anchor
 				End If
 			Next
@@ -2564,7 +2570,13 @@ Private Sub Import(ByVal filename)
 		filename = fso.GetAbsolutePathName(filename)
 	End If
 
+	On Error Resume Next
 	Set file = fso.OpenTextFile(filename, 1, False)
+	If Err Then
+		WScript.Echo "Cannot import '" & filename & "': " & Err.Description & " (0x" & Hex(Err.Number) & ")"
+		WScript.Quit 1
+	End If
+	On Error Goto 0
 	code = file.ReadAll
 	file.Close
 

@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2012-08-14
-'! @version 2.2
+'! @date    2012-08-26
+'! @version 2.3
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -942,11 +942,11 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 		indexFile.Close
 	End If
 
-	Set re = CompileRegExp("[^\\]+\\", True, True)
+	Set re = CompileRegExp("[^\\/]+[\\/]", True, True)
 
 	For Each relPath In doc.Keys
 		css = re.Replace(fso.BuildPath(relPath, StylesheetName), "../")
-		dir = fso.BuildPath(docRoot, relPath)
+		dir = Replace(fso.BuildPath(docRoot, relPath), "/", "\")
 		CreateDirectory dir
 
 		filename = fso.BuildPath(relPath, IndexFileName)

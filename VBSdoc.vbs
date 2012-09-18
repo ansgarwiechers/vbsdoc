@@ -2,7 +2,7 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2012-08-26
+'! @date    2012-09-18
 '! @version 2.3
 
 ' This program is free software; you can redistribute it and/or
@@ -94,6 +94,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 	localize.Add "en", CreateObject("Scripting.Dictionary")
 		localize("en").Add "AUTHOR"          , "Author"
 		localize("en").Add "CLASS"           , "Class"
+		localize("en").Add "CLASSES"         , "Classes"
 		localize("en").Add "CLASS_SUMMARY"   , "Classes Summary"
 		localize("en").Add "CONST_DETAIL"    , "Global Constant Detail"
 		localize("en").Add "CONST_SUMMARY"   , "Global Constant Summary"
@@ -102,7 +103,11 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("en").Add "EXCEPT"          , "Raises"
 		localize("en").Add "FIELD_DETAIL"    , "Field Detail"
 		localize("en").Add "FIELD_SUMMARY"   , "Field Summary"
+		localize("en").Add "GLOBAL_CONST"    , "Global Constants"
+		localize("en").Add "GLOBAL_PROC"     , "Global Procedures &amp; Functions"
+		localize("en").Add "GLOBAL_VAR"      , "Global Variables"
 		localize("en").Add "HTML_HELP_LANG"  , "0x409 Englisch (USA)"
+		localize("en").Add "INDEX"           , "Global Index"
 		localize("en").Add "METHOD_DETAIL"   , "Method Detail"
 		localize("en").Add "METHOD_SUMMARY"  , "Method Summary"
 		localize("en").Add "PARAM"           , "Parameters"
@@ -112,6 +117,8 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("en").Add "PROP_SUMMARY"    , "Property Summary"
 		localize("en").Add "RETURN"          , "Returns"
 		localize("en").Add "SEE_ALSO"        , "See also"
+		localize("en").Add "SOURCEFILE"      , "Source file"
+		localize("en").Add "SOURCEINDEX"     , "Source File Index"
 		localize("en").Add "TODO"            , "ToDo List"
 		localize("en").Add "VAR_DETAIL"      , "Global Variable Detail"
 		localize("en").Add "VAR_SUMMARY"     , "Global Variable Summary"
@@ -120,6 +127,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 	localize.Add "de", CreateObject("Scripting.Dictionary")
 		localize("de").Add "AUTHOR"          , "Autor"
 		localize("de").Add "CLASS"           , "Klasse"
+		localize("de").Add "CLASSES"         , "Klassen"
 		localize("de").Add "CLASS_SUMMARY"   , "Klassen - Zusammenfassung"
 		localize("de").Add "CONST_DETAIL"    , "Globale Konstanten - Details"
 		localize("de").Add "CONST_SUMMARY"   , "Globale Konstanten - Zusammenfassung"
@@ -128,7 +136,11 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("de").Add "EXCEPT"          , "Wirft"
 		localize("de").Add "FIELD_DETAIL"    , "Attribute - Details"
 		localize("de").Add "FIELD_SUMMARY"   , "Attribute - Zusammenfassung"
+		localize("de").Add "GLOBAL_CONST"    , "Globale Konstanten"
+		localize("de").Add "GLOBAL_PROC"     , "Globale Prozeduren &amp; Funktionen"
+		localize("de").Add "GLOBAL_VAR"      , "Globale Variablen"
 		localize("de").Add "HTML_HELP_LANG"  , "0x407 Deutsch (Deutschland)"
+		localize("de").Add "INDEX"           , "&Uuml;bersicht"
 		localize("de").Add "METHOD_DETAIL"   , "Methoden - Details"
 		localize("de").Add "METHOD_SUMMARY"  , "Methoden - Zusammenfassung"
 		localize("de").Add "PARAM"           , "Parameter"
@@ -136,8 +148,10 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("de").Add "PROC_SUMMARY"    , "Global Prozeduren - Zusammenfassung"
 		localize("de").Add "PROP_DETAIL"     , "Eigenschaften - Details"
 		localize("de").Add "PROP_SUMMARY"    , "Eigenschaften - Zusammenfassung"
-		localize("de").Add "RETURN"          , "Rückgabewert"
+		localize("de").Add "RETURN"          , "R&uuml;ckgabewert"
 		localize("de").Add "SEE_ALSO"        , "Siehe auch"
+		localize("de").Add "SOURCEFILE"      , "Quelldatei"
+		localize("de").Add "SOURCEINDEX"     , "Index der Quelldateien"
 		localize("de").Add "TODO"            , "Aufgabenliste"
 		localize("de").Add "VAR_DETAIL"      , "Globale Variablen - Details"
 		localize("de").Add "VAR_SUMMARY"     , "Globale Variablen - Zusammenfassung"
@@ -928,19 +942,7 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 	CreateDirectory docRoot
 	CreateStylesheet fso.BuildPath(docRoot, StylesheetName)
 
-	If IsNull(title) Then
-		log.LogDebug "Writing index file " & fso.BuildPath(docRoot, IndexFileName) & " ..."
-		Set indexFile = fso.OpenTextFile(fso.BuildPath(docRoot, IndexFileName), ForWriting, True)
-		WriteHeader indexFile, "Main Page", StylesheetName
-		If projectName <> "" Then indexFile.WriteLine "<h1>" & projectName & "</h1>"
-
-		For Each relPath In Sort(doc.Keys)
-			indexFile.WriteLine "<p><a href=""" & relPath & "/" & IndexFileName & """>" & relPath & ".vbs</a></p>"
-		Next
-
-		WriteFooter indexFile
-		indexFile.Close
-	End If
+	If IsNull(title) Then GenMainIndex doc, docRoot, lang
 
 	Set re = CompileRegExp("[^\\/]+[\\/]", True, True)
 
@@ -953,7 +955,6 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 		log.LogDebug "Writing script documentation file " & filename & " ..."
 		Set f = fso.OpenTextFile(fso.BuildPath(docRoot, filename), ForWriting, True)
 		WriteHeader f, fso.GetFileName(relPath), css
-
 
 		If IsNull(title) Then
 			f.WriteLine "<h1>" & fso.GetFileName(relPath) & "." & Ext & "</h1>"
@@ -1047,6 +1048,100 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 			f.Close
 		Next
 	Next
+End Sub
+
+'! Generate the main index for the documentation.
+'!
+'! @param  doc    Structure containing the documentation elements extracted
+'!                from the source file(s).
+'! @param  root   Root directory for the documentation files.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
+Sub GenMainIndex(doc, root, lang)
+	Dim indexFile, relPath
+	Dim classes, constants, variables, procedures
+	Dim name, signature, srcPath
+
+	log.LogDebug "Writing index file " & fso.BuildPath(root, IndexFileName) & " ..."
+
+	Set indexFile = fso.OpenTextFile(fso.BuildPath(root, IndexFileName), ForWriting, True)
+
+	WriteHeader indexFile, "Main Page", StylesheetName
+	If projectName = "" Then
+		indexFile.WriteLine "<h1>" & localize(lang)("INDEX") & "</h1>"
+	Else
+		indexFile.WriteLine "<h1>" & localize(lang)("INDEX") & ": " & projectName & "</h1>"
+	End If
+
+	Set classes    = CreateRecordset()
+	Set constants  = CreateRecordset()
+	Set variables  = CreateRecordset()
+	Set procedures = CreateRecordset()
+
+	For Each relPath In Sort(doc.Keys)
+		srcPath = Replace(relPath & "." & Ext, "/", "\")
+		For Each name In doc(relPath)("Classes").Keys
+			classes.AddNew
+			classes("name").Value = name
+			classes("docpath").Value = relPath & "/" & name & ".html"
+			classes("srcpath").Value = srcPath
+			classes("description").Value = doc(relPath)("Classes")(name)("Metadata")("@brief")
+			classes.Update
+		Next
+		classes.Sort = "name, srcpath ASC"
+		For Each name In doc(relPath)("Constants").Keys
+			constants.AddNew
+			constants("name").Value = name
+			constants("docpath").Value = relPath & "/" & IndexFileName & "#" & name
+			constants("srcpath").Value = srcPath
+			constants("description").Value = doc(relPath)("Constants")(name)("Metadata")("@brief")
+			constants.Update
+		Next
+		constants.Sort = "name, srcpath ASC"
+		For Each name In doc(relPath)("Variables").Keys
+			variables.AddNew
+			variables("name").Value = name
+			variables("docpath").Value = relPath & "/" & IndexFileName & "#" & name
+			variables("srcpath").Value = srcPath
+			variables("description").Value = doc(relPath)("Variables")(name)("Metadata")("@brief")
+			variables.Update
+		Next
+		variables.Sort = "name, srcpath ASC"
+		For Each name In doc(relPath)("Procedures").Keys
+			procedures.AddNew
+			signature = name & "(" & Join(doc(relPath)("Procedures")(name)("Parameters"), ", ") & ")"
+			procedures("name").Value = signature
+			procedures("docpath").Value = relPath & "/" & IndexFileName & "#" & CanonicalizeID(signature)
+			procedures("srcpath").Value = srcPath
+			procedures("description").Value = doc(relPath)("Procedures")(name)("Metadata")("@brief")
+			procedures.Update
+		Next
+		procedures.Sort = "name, srcpath ASC"
+	Next
+
+	indexFile.WriteLine GenGlobals(classes, "CLASSES", lang)
+	classes.Close
+	Set classes = Nothing
+
+	indexFile.WriteLine GenGlobals(constants, "GLOBAL_CONST", lang)
+	constants.Close
+	Set constants = Nothing
+
+	indexFile.WriteLine GenGlobals(variables, "GLOBAL_VAR", lang)
+	variables.Close
+	Set variables = Nothing
+
+	indexFile.WriteLine GenGlobals(procedures, "GLOBAL_PROC", lang)
+	procedures.Close
+	Set procedures = Nothing
+
+	indexFile.WriteLine "<h2>" & localize(lang)("SOURCEINDEX") & "</h2>"
+	For Each relPath In Sort(doc.Keys)
+		indexFile.WriteLine "<p><a href=""" & relPath & "/" & IndexFileName & """>" & relPath & ".vbs</a></p>"
+	Next
+
+	WriteFooter indexFile
+	indexFile.Close
 End Sub
 
 '! Write the given heading and data to the given file. The heading omitted in
@@ -1613,6 +1708,39 @@ Private Function GenExceptionInfo(tags, lang)
 	GenExceptionInfo = info
 End Function
 
+'! Write the section for the given global objects (classes, global constants,
+'! global variables, global procedures/functions) to the global index.
+'!
+'! @param  rs       Recordset with the object information.
+'! @param  objType  The type of objects in the recordset.
+'! @param  lang     Documentation language. All generated text that is not read
+'!                  from the source document(s) is created in this language.
+'! @return HTML snippet with information about global objects. Empty string if
+'!         no information was present.
+Private Function GenGlobals(rs, objType, lang)
+	Dim source
+
+	GenGlobals = ""
+	If Not (rs.BOF And rs.EOF) Then
+		' recordset not empty
+		GenGlobals = "<h2>" & localize(lang)(objType) & "</h2>" & vbNewLine
+		source = localize(lang)("SOURCEFILE")
+		rs.MoveFirst
+		Do Until rs.EOF
+			GenGlobals = GenGlobals & "<p class=""function""><code><span class=""name""><a href=""" & rs("docpath") & """>"
+			If objType = "GLOBAL_PROC" Then
+				GenGlobals = GenGlobals & Replace(rs("name"), "(", "</a>(")
+			Else
+				GenGlobals = GenGlobals & rs("name") & "</a>"
+			End If
+			GenGlobals = GenGlobals & "</span></code></p>" & vbNewLine _
+				& "<p class=""description"">" & rs("description") & "</a></p>" & vbNewLine _
+				& "<p class=""sourcefile""><strong>" & source & ":</strong> " & rs("srcpath") & "</a></p>" & vbNewLine
+			rs.MoveNext
+		Loop
+	End If
+End Function
+
 '! Create a hyperlink from a given reference. The link is created relative to
 '! filename.
 '!
@@ -1709,7 +1837,7 @@ Private Sub CreateStylesheet(filename)
 		& "h1 { font-size: 200%; margin-bottom: 10px; }" & vbNewLine _
 		& "h2 { background-color: #ccccff; border: 1px solid black; font-size: 150%; margin: 20px 0 10px; padding: 10px 5px; }" & vbNewLine _
 		& "h3,p { margin-bottom: 5px; }" & vbNewLine _
-		& "h4,p.description { margin: 3px 0 0 50px; }" & vbNewLine _
+		& "h4,p.description,p.sourcefile { margin: 3px 0 0 50px; }" & vbNewLine _
 		& "h4 { margin-top: 6px; margin-bottom: 4px; }" & vbNewLine _
 		& "p.value { margin-left: 100px; }" & vbNewLine _
 		& "p.footer { margin-top: 20px; text-align: center; font-size: 10px; }" & vbNewLine _
@@ -1772,6 +1900,7 @@ End Sub
 '! @param  codeParams  Array with the actual parameters from the code.
 '! @param  docParams   Array with the documented parameters.
 '! @param  name        Name of the procedure or function.
+'! @param  isReadable  Boolean value indicating if the property can be read.
 Private Sub CheckPropParamConsistency(codeParams, docParams, name, isReadable)
 	Dim missing, undocumented
 
@@ -2403,6 +2532,24 @@ Private Function CanonicalizeID(ByVal id)
 	' code (i.e. the script won't run otherwise).
 
 	CanonicalizeID = id
+End Function
+
+'! Create a disconnected recordset with 4 fields: name, docpath, srcpath and
+'! description.
+'!
+'! @return The newly created recordset.
+Private Function CreateRecordset()
+	Const adVarChar = 200
+	Const maxChars  = 255
+
+	Dim rs : Set rs= CreateObject("ADOR.Recordset")
+	rs.Fields.Append "name", adVarChar, maxChars
+	rs.Fields.Append "docpath", adVarChar, maxChars
+	rs.Fields.Append "srcpath", adVarChar, maxChars
+	rs.Fields.Append "description", adVarChar, maxChars
+	rs.Open
+
+	Set CreateRecordset = rs
 End Function
 
 '! Sort a given array in ascending order. This is merely a wrapper for

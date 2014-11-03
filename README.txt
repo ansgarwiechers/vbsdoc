@@ -257,5 +257,5 @@ References
 ----------
 [1] http://vbdox.sourceforge.net/
 [2] http://www.doxygen.org/
-[3] http://www.planetcobalt.net/download/LoggerClass-1.2.zip
+[3] http://www.planetcobalt.net/download/CLogger-2.0.zip
 [4] http://msdn.microsoft.com/en-us/library/ms670169.aspx

@@ -212,7 +212,12 @@ Public Sub Main(args)
 		End If
 
 		If .Named.Exists("i") Then
-			srcRoot = .Named("i")
+			If Trim(.Named("i")) = "" Then
+				log.LogError "Empty value for option /i."
+				WScript.Quit(1)
+			Else
+				srcRoot = .Named("i")
+			End If
 		Else
 			PrintUsage(1)
 		End If
@@ -404,10 +409,7 @@ Public Function GetFileDef(filename, includePrivate)
 
 	log.LogInfo "Generating documentation for " & filename & " ..."
 
-	log.LogDebug "Reading input file " & filename & " ..."
-	Set inFile = fso.OpenTextFile(filename, ForReading)
-	content = inFile.ReadAll
-	inFile.Close
+	content = GetContent(filename)
 
 	' ****************************************************************************
 	' preparatory steps
@@ -454,6 +456,51 @@ Public Function GetFileDef(filename, includePrivate)
 	CheckRemainingCode content
 
 	Set GetFileDef = document
+End Function
+
+'! Get the content of a given input file. The function reads ASCII, 
+'! UTF-8, and UTF-16 (big and little endian) encoded files. The encoding
+'! is determined by the byte order mark (BOM) in the first 2 or 3 bytes
+'! of the file.
+'!
+'! @param filename
+'! @return The content of the input file
+Private Function GetContent(filename)
+	Dim bom, f, stream
+
+	log.LogDebug "Reading " & filename & " ..."
+
+	bom = ""
+	Set f = fso.OpenTextFile(filename)
+	Do Until f.AtEndOfStream Or bom = "ÿþ" Or bom = "þÿ" Or Len(bom) >= 3
+		bom = bom & f.Read(1)
+	Loop
+	f.Close
+
+	Select Case bom
+		Case "ÿþ", "þÿ"
+			'UTF-16 text
+			log.LogDebug "Encoding: UTF-16"
+			Set f = fso.OpenTextFile(filename, 1, False, -1)
+			GetContent = f.ReadAll
+			f.Close
+		Case "ï»¿"
+			'UTF-8 text
+			log.LogDebug "Encoding: UTF-8"
+			Set stream = CreateObject("ADODB.Stream")
+			stream.Open
+			stream.Type = 2
+			stream.Charset = "utf-8"
+			stream.LoadFromFile filename
+			GetContent = stream.ReadText
+			stream.Close
+		Case Else
+			'ASCII text
+			log.LogDebug "Encoding: ASCII"
+			Set f = fso.OpenTextFile(filename, 1, False, 0)
+			GetContent = f.ReadAll
+			f.Close
+	End Select
 End Function
 
 '! Get a list of todo items. The list is generated from the @todo tags in the

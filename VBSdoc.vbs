@@ -2,8 +2,8 @@
 '! comments in VBScripts.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2012-09-18
-'! @version 2.3
+'! @date    2014-11-03
+'! @version 2.4
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License

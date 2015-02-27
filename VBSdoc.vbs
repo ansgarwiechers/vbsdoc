@@ -1,9 +1,11 @@
 '! Script for automatic generation of API documentation from special
 '! comments in VBScripts.
 '!
+'! Portuguese localization contributed by Luis Da Costa <luisdc@libretrend.com>.
+'!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2014-11-03
-'! @version 2.4
+'! @date    2015-02-27
+'! @version 2.5
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -156,8 +158,41 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("de").Add "VAR_DETAIL"      , "Globale Variablen - Details"
 		localize("de").Add "VAR_SUMMARY"     , "Globale Variablen - Zusammenfassung"
 		localize("de").Add "VERSION"         , "Version"
+	' Tradução em Português de Portugal
+	localize.Add "pt", CreateObject("Scripting.Dictionary")
+		localize("pt").Add "AUTHOR"          , "Autor"
+		localize("pt").Add "CLASS"           , "Classe"
+		localize("pt").Add "CLASSES"         , "Classes"
+		localize("pt").Add "CLASS_SUMMARY"   , "Sum&aacute;rio das Classes"
+		localize("pt").Add "CONST_DETAIL"    , "Detalhes das Constantes Globais"
+		localize("pt").Add "CONST_SUMMARY"   , "Sum&aacute;rio das Constantes Globais"
+		localize("pt").Add "CTORDTOR_DETAIL" , "Detalhes dos Constructores/Destructores"
+		localize("pt").Add "CTORDTOR_SUMMARY", "Sum&aacute;rio dos Constructores/Destructores"
+		localize("pt").Add "EXCEPT"          , "Excep&ccedil;&atilde;o"
+		localize("pt").Add "FIELD_DETAIL"    , "Detalhes do Atributo"
+		localize("pt").Add "FIELD_SUMMARY"   , "Sum&aacute;rio do Atributo"
+		localize("pt").Add "GLOBAL_CONST"    , "Constantes Globais"
+		localize("pt").Add "GLOBAL_PROC"     , "Procedimentos Globais"
+		localize("pt").Add "GLOBAL_VAR"      , "Vari&aacute;veis Globais"
+		localize("pt").Add "HTML_HELP_LANG"  , "0x816 Portugu&ecirc;s (Portugal)"
+		localize("pt").Add "INDEX"           , "&Iacute;ndice"
+		localize("pt").Add "METHOD_DETAIL"   , "Detalhes de M&eacute;todos"
+		localize("pt").Add "METHOD_SUMMARY"  , "Sum&aacute;rio de M&eacute;todos"
+		localize("pt").Add "PARAM"           , "Par&acirc;metros"
+		localize("pt").Add "PROC_DETAIL"     , "Detalhes de Procedimentos Globais"
+		localize("pt").Add "PROC_SUMMARY"    , "Sum&aacute;rio de Procedimentos Globais"
+		localize("pt").Add "PROP_DETAIL"     , "Detalhes de Propriedades Globais"
+		localize("pt").Add "PROP_SUMMARY"    , "Sum&aacute;rio de Propriedades Globais"
+		localize("pt").Add "RETURN"          , "Retornos"
+		localize("pt").Add "SEE_ALSO"        , "Consulta adicional"
+		localize("pt").Add "SOURCEFILE"      , "Ficheiro Fonte"
+		localize("pt").Add "SOURCEINDEX"     , "&Iacute;ndice Principal"
+		localize("pt").Add "TODO"            , "POR FAZER"
+		localize("pt").Add "VAR_DETAIL"      , "Detalhes das Vari&aacute;veis Globais"
+		localize("pt").Add "VAR_SUMMARY"     , "Sum&aacute;rio das Vari&aacute;veis Globais"
+		localize("pt").Add "VERSION"         , "Vers&atilde;o"
 
-Private beQuiet     '! Controls whether or not warning messages are printed.
+Private beQuiet     '! Controls whether or not info and warning messages are printed.
 Private projectName '! An optional project name.
 Private anchors     '! Referenceable documentation items.
 
@@ -267,9 +302,9 @@ End Sub
 ' Data gathering
 ' ------------------------------------------------------------------------------
 
-' During the data gathering phase, the documentation data and metadata is
-' gathered into data structures as lined out below. Square brackets signify
-' arrays, curly brackets signify dictionaries. Elements in double quotes are
+' During the data gathering phase the documentation data and metadata is
+' gathered into data structures as lined out below. Square brackets indicate
+' arrays, curly brackets indicate dictionaries. Elements in double quotes are
 ' name literals. Leaf elements are data types.
 '
 ' {
@@ -407,7 +442,7 @@ Public Function GetFileDef(filename, includePrivate)
 		Exit Function ' nothing to do
 	End If
 
-	log.LogInfo "Generating documentation for " & filename & " ..."
+	If Not beQuiet Then log.LogInfo "Generating documentation for " & filename & " ..."
 
 	content = GetContent(filename)
 
@@ -655,7 +690,11 @@ Private Function GetMethodDef(ByRef code, ByVal includePrivate)
 				d.Add "Metadata", tags
 
 				log.LogDebug "Adding procedure/function " & .Item(7)
-				methods.Add .Item(7), d
+				If methods.Exists(.Item(7)) Then
+					log.LogWarning .Item(6) & " " & .Item(7) & "() redefined."
+				Else
+					methods.Add .Item(7), d
+				End If
 			End If
 		End With
 	Next
@@ -1419,19 +1458,27 @@ Private Function GenSummary(ByVal name, ByVal properties, ByVal elementType)
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "procedure"
 		params = EncodeHTMLEntities(Join(properties("Parameters"), ", "))
-		signature = "<code><span class=""name""><a href=""#" & CanonicalizeID(name _
+		If properties("IsDefault") Then
+			signature = "<code class=""default"">"
+		Else
+			signature = "<code>"
+		End If
+		signature = signature & "<span class=""name""><a href=""#" & CanonicalizeID(name _
 			& "(" & params & ")") & """>" & name & "</a></span>(" & params & ")</code>"
-		If properties("IsDefault") Then signature = signature & "<br/>default"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "property"
-		signature = "<code><span class=""name""><a href=""#" & CanonicalizeID(name) _
-			& """>" & name & "</a></span>"
+		If properties("IsDefault") Then
+			signature = "<code class=""default"">"
+		Else
+			signature = "<code>"
+		End If
+		signature = signature & "<span class=""name""><a href=""#" _
+			& CanonicalizeID(name) & """>" & name & "</a></span>"
 		If properties.Exists("Parameters") Then
 			If UBound(properties("Parameters")) >= 0 Then signature = signature & "(" _
 				& EncodeHTMLEntities(Join(properties("Parameters"), ", ")) & ")"
 		End If
 		signature = signature & "</code>"
-		If properties("IsDefault") Then signature = signature & "<br/>default"
 		GenSummary = GenSummaryInfo(signature, properties("Metadata"))
 	Case "variable"
 		signature = "<code><span class=""name""><a href=""#" & name & """>" & name _
@@ -1488,14 +1535,14 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 		Set re = CompileRegExp("^&h([0-9a-f]+)$", True, True)
 		signature = "<code>" & visibility & " Const <span class=""name"">" & name _
 			& "</span> = " & re.Replace(Trim(properties("Value")), "0x$1") & "</code>"
-		GenDetails = GenDetailsHeading(heading, signature) _
+		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "procedure"
 		signature = "<code>" & visibility
-		If properties("IsDefault") Then signature = signature & "<br/>default"
+		If properties("IsDefault") Then signature = signature & " Default"
 		signature = signature & " <span class=""name"">" & name & "</span>(" & params & ")</code>"
-		GenDetails = GenDetailsHeading(heading, signature) _
+		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenParameterInfo(properties("Metadata"), lang) _
 			& GenReturnValueInfo(properties("Metadata"), lang) _
@@ -1523,14 +1570,14 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 			End If
 		End If
 		signature = signature & "</code><br/>" & accessibility
-		If properties("IsDefault") Then signature = signature & ", default"
-		GenDetails = GenDetailsHeading(heading, signature) _
+		'~ If properties("IsDefault") Then signature = signature & ", default"
+		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenExceptionInfo(properties("Metadata"), lang) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "variable"
 		signature = "<code>" & visibility & " <span class=""name"">" & name & "</span></code>"
-		GenDetails = GenDetailsHeading(heading, signature) _
+		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case Else
@@ -1591,8 +1638,9 @@ Private Function GenReferencesInfo(tags, lang, filename)
 		For Each ref In tags("@see")
 			Set re = CompileRegExp("(\S+)(\s+.*)?", True, True)
 			For Each m In re.Execute(ref)
-				info = info & "<p class=""value"">" & CreateLink(m.SubMatches(0), filename) _
-					& m.SubMatches(1) & "</p>" & vbNewLine
+				info = info & "<p class=""value"">" _
+					& CreateLink(m.SubMatches(0), m.SubMatches(1), filename) _
+					& "</p>" & vbNewLine
 			Next
 		Next
 	End If
@@ -1646,9 +1694,17 @@ End Function
 '!
 '! @param  heading   The heading text.
 '! @param  signature The signature of the procedure, variable or constant.
+'! @param  default   Indicates whether the documented item is a default item or not.
 '! @return HTML snippet with the heading and signature.
-Private Function GenDetailsHeading(heading, signature)
-	GenDetailsHeading = "<h3>" & heading & "</h3>" & vbNewLine & "<p class=""function"">" _
+Private Function GenDetailsHeading(heading, signature, default)
+	Dim tag
+
+	If default Then
+		tag = "<h3 class=""default"">"
+	Else
+		tag = "<h3>"
+	End If
+	GenDetailsHeading = tag & heading & "</h3>" & vbNewLine & "<p class=""function"">" _
 		& signature & "</p>" & vbNewLine
 End Function
 
@@ -1791,19 +1847,27 @@ End Function
 '! Create a hyperlink from a given reference. The link is created relative to
 '! filename.
 '!
-'! @param  ref      The reference.
+'! @param  ref      The hyperlink reference.
+'! @param  text     The hyperlink text. If this parameter is empty, the value
+'!                  of the ref parameter is used instead.
 '! @param  filename Name and path of the documentation file that is currently
 '!                  being created.
 '! @return HTML snippet with the hyperlink to the reference.
-Private Function CreateLink(ByVal ref, filename)
-	Dim reURL, link, arrSelf, arrRef, i, sameParent, re
+Private Function CreateLink(ByVal ref, ByVal text, filename)
+	Dim reURL, reText, link, arrSelf, arrRef, i, sameParent, re
 
-	log.LogDebug "> CreateLink(" & TypeName(ref) & ", " & TypeName(filename) & ")"
+	log.LogDebug "> CreateLink(" & TypeName(ref) & ", " & TypeName(text) & ", " & TypeName(filename) & ")"
 	log.LogDebug "  ref:      " & ref
+	log.LogDebug "  text:     " & text
 	log.LogDebug "  filename: " & filename
 
 	Set reURL = CompileRegExp("<(.*)>", True, True)
 	ref = reURL.Replace(ref, "$1")
+
+	If Not IsEmpty(text) Then
+		Set reText = CompileRegExp("^\s*\(\s*(.*)\s*\)\s*$", True, True)
+		text = reText.Replace(Trim(text), "$1")
+	End If
 
 	If IsInternalReference(ref) Then
 		' reference is internal
@@ -1815,7 +1879,11 @@ Private Function CreateLink(ByVal ref, filename)
 		log.LogDebug "<<< " & filename
 		log.LogDebug ">>> " & ref
 
-		link = ">" & Mid(ref, InStr(ref, "#")+1)
+		If IsEmpty(text) Then
+			link = ">" & Mid(ref, InStr(ref, "#")+1)
+		Else
+			link = ">" & text
+		End If
 
 		If filename = Split(ref, "#")(0) Then
 			' reference is file-local
@@ -1852,7 +1920,11 @@ Private Function CreateLink(ByVal ref, filename)
 	Else
 		' reference is external
 		log.LogDebug "External reference: " & ref
-		link = " target=""_blank"">" & ref
+		If IsEmpty(text) Then
+			link = " target=""_blank"">" & ref
+		Else
+			link = " target=""_blank"">" & text
+		End If
 	End If
 
 	CreateLink = "<a href=""" & ref & """" & link & "</a>"
@@ -1893,7 +1965,9 @@ Private Sub CreateStylesheet(filename)
 		& "hr { border: 1px solid #a0a0a0; width: 94%; margin: 10px 3%; }" & vbNewLine _
 		& "ul { list-style: disc inside; margin-left: 50px; padding: 5px 0; }" & vbNewLine _
 		& "ul.description { margin-left: 75px; }" & vbNewLine _
-		& "li { text-indent: -1em; margin-left: 1em; }"
+		& "li { text-indent: -1em; margin-left: 1em; }" & vbNewLine _
+		& ".default { font-style: italic; }" & vbNewLine _
+		& ".default:before { content: ""*"" }"
 	f.Close
 End Sub
 

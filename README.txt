@@ -19,10 +19,14 @@ See COPYING.txt.
 
 Requirements
 ------------
-- VBSdoc uses my Logger class [3] for displaying messages.
+- VBSdoc uses my CLogger class [3] for displaying messages.
 - For generation of compiled HTML Help files, HTML Help Workshop [4] must
   be installed and the HTML Help compiler hhc.exe must be in the %PATH%
   of the user running VBSdoc.
+- When generating CHM output the output directory should be in the
+  current working directory, otherwise links in the content section
+  might not work:
+    VBSdoc.vbs /i:C:\path\to\some.vbs /o:.\chmtmp /h:some.chm
 
 
 Usage
@@ -237,7 +241,10 @@ Complete list of supported tags:
           and may be enclosed in angular brackets. Descriptive text may
           be placed after the reference:
             @see  REF  DESCRIPTION
-          Optional, multiple tags per documented element are allowed.
+          If DESCRIPTION is provided, it will appear as the link text
+          instead of REF. Parentheses around DESCRIPTION are removed
+          automatically. Optional. Multiple tags per documented element
+          are allowed.
 
 @todo     An unfinished task. @todo doc comments are somewhat special,
           as they are extracted from source files before the processing

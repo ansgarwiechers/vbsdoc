@@ -40,7 +40,7 @@ VBSdoc.vbs /?
           HTML Help Workshop)
   /i      Read input files from SOURCE. Can be either a file or a
           directory. (required)
-  /l      Generate localized output [de,en]. Default language is en.
+  /l      Generate localized output [de,en,pt]. Default language is en.
   /o      Create output files in DOC_DIR. (required)
   /p      Use NAME as the project name.
   /q      Don't print warnings. Ignored if debug messages are enabled.

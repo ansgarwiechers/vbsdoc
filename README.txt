@@ -27,7 +27,7 @@ Requirements
 
 Usage
 -----
-VBSdoc.vbs [/d] [/a] [/q] [/l:LANG] [/p:NAME] [/h:CHM_FILE]
+VBSdoc.vbs [/d] [/a] [/q] [/l:LANG] [/p:NAME] [/e:EXT] [/h:CHM_FILE]
            /i:SOURCE /o:DOC_DIR
 VBSdoc.vbs /?
 
@@ -36,11 +36,12 @@ VBSdoc.vbs /?
           Without this option, documentation is generated for public
           elements only.
   /d      Enable debug messages. (you really don't want this)
+  /e      Process files with the given extension (default: vbs).
   /h      Create CHM_FILE in addition to normal HTML output. (requires
           HTML Help Workshop)
   /i      Read input files from SOURCE. Can be either a file or a
           directory. (required)
-  /l      Generate localized output [de,en,pt]. Default language is en.
+  /l      Generate localized output (available: de,en,pt; default: en).
   /o      Create output files in DOC_DIR. (required)
   /p      Use NAME as the project name.
   /q      Don't print warnings. Ignored if debug messages are enabled.
@@ -211,8 +212,8 @@ Complete list of supported tags:
           sentence or line of the detail information. Should appear at
           most once per documented element.
 
-@date     The release date. Valid for files and classes, otherwise
-          ignored. Optional.
+@date     Date tag to document the release or modification date of an
+          element or file. Optional.
 
 @details  Detailed description of the procedure, property or identifyer.
           This is the default tag. The keyword is optional; anything

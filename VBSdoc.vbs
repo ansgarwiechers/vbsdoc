@@ -4,8 +4,8 @@
 '! Portuguese localization contributed by Luis Da Costa <luisdc@libretrend.com>.
 '!
 '! @author  Ansgar Wiechers <ansgar.wiechers@planetcobalt.net>
-'! @date    2015-02-27
-'! @version 2.5
+'! @date    2016-02-27
+'! @version 2.6
 
 ' This program is free software; you can redistribute it and/or
 ' modify it under the terms of the GNU General Public License
@@ -33,8 +33,6 @@ Private Const WshFinished = 1
 
 Private Const vbReplaceAll = -1
 
-Private Const Ext = "vbs"
-
 Private Const IndexFileName  = "index.html"
 Private Const StylesheetName = "vbsdoc.css"
 Private Const TextFont       = "Verdana, Arial, helvetica, sans-serif"
@@ -42,7 +40,8 @@ Private Const CodeFont       = "Lucida Console, Courier New, Courier, monospace"
 Private Const BaseFontSize   = "14px"
 Private Const CopyrightInfo  = "Created with <a href=""http://www.planetcobalt.net/sdb/vbsdoc.shtml"" target=""_blank"">VBSdoc</a>. &copy;2010 <a href=""mailto:ansgar.wiechers@planetcobalt.net"">Ansgar Wiechers</a>."
 
-Private Const DefaultLanguage = "en"
+Private Const DefaultExtension = "vbs"
+Private Const DefaultLanguage  = "en"
 
 ' Initialize global objects.
 Private fso : Set fso = CreateObject("Scripting.FileSystemObject")
@@ -102,6 +101,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("en").Add "CONST_SUMMARY"   , "Global Constant Summary"
 		localize("en").Add "CTORDTOR_DETAIL" , "Constructor/Destructor Detail"
 		localize("en").Add "CTORDTOR_SUMMARY", "Constructor/Destructor Summary"
+		localize("en").Add "DATE"            , "Date"
 		localize("en").Add "EXCEPT"          , "Raises"
 		localize("en").Add "FIELD_DETAIL"    , "Field Detail"
 		localize("en").Add "FIELD_SUMMARY"   , "Field Summary"
@@ -135,6 +135,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("de").Add "CONST_SUMMARY"   , "Globale Konstanten - Zusammenfassung"
 		localize("de").Add "CTORDTOR_DETAIL" , "Konstruktor/Destruktor - Details"
 		localize("de").Add "CTORDTOR_SUMMARY", "Konstruktor/Destruktor - Zusammenfassung"
+		localize("de").Add "DATE"            , "Datum"
 		localize("de").Add "EXCEPT"          , "Wirft"
 		localize("de").Add "FIELD_DETAIL"    , "Attribute - Details"
 		localize("de").Add "FIELD_SUMMARY"   , "Attribute - Zusammenfassung"
@@ -168,6 +169,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 		localize("pt").Add "CONST_SUMMARY"   , "Sum&aacute;rio das Constantes Globais"
 		localize("pt").Add "CTORDTOR_DETAIL" , "Detalhes dos Constructores/Destructores"
 		localize("pt").Add "CTORDTOR_SUMMARY", "Sum&aacute;rio dos Constructores/Destructores"
+		localize("pt").Add "DATE"            , "Data"
 		localize("pt").Add "EXCEPT"          , "Excep&ccedil;&atilde;o"
 		localize("pt").Add "FIELD_DETAIL"    , "Detalhes do Atributo"
 		localize("pt").Add "FIELD_SUMMARY"   , "Sum&aacute;rio do Atributo"
@@ -195,6 +197,7 @@ Private localize : Set localize = CreateObject("Scripting.Dictionary")
 Private beQuiet     '! Controls whether or not info and warning messages are printed.
 Private projectName '! An optional project name.
 Private anchors     '! Referenceable documentation items.
+Private ext         '! Process files with this extension.
 
 Main WScript.Arguments
 
@@ -230,6 +233,16 @@ Public Sub Main(args)
 				chmFile = Trim(.Named("h"))
 			Else
 				PrintUsage(1)
+			End If
+		End If
+
+		' Process files with the default extension if /e is omitted or used without
+		' specifying a particular extension. Otherwise process files with the given
+		' extension.
+		ext = DefaultExtension
+		If .Named.Exists("e") Then
+			If Trim(.Named("e")) <> "" Then
+				ext = Trim(.Named("e"))
 			End If
 		End If
 
@@ -406,7 +419,7 @@ Public Sub GetDef(ByRef doc, srcDir, docDir, includePrivate)
 
 	For Each f In srcDir.Files
 		log.LogDebug "Extracting data from " & fso.BuildPath(srcDir, f.Name) & " ..."
-		If LCase(fso.GetExtensionName(f.Name)) = Ext Then
+		If LCase(fso.GetExtensionName(f.Name)) = ext Then
 			name = Replace(fso.BuildPath(docDir, fso.GetBaseName(f.Name)), "\", "/")
 			srcFile = fso.BuildPath(f.ParentFolder, f.Name)
 			doc.Add name, GetFileDef(srcFile, includePrivate)
@@ -1043,7 +1056,7 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 		WriteHeader f, fso.GetFileName(relPath), css
 
 		If IsNull(title) Then
-			f.WriteLine "<h1>" & fso.GetFileName(relPath) & "." & Ext & "</h1>"
+			f.WriteLine "<h1>" & fso.GetFileName(relPath) & "." & ext & "</h1>"
 		Else
 			f.WriteLine "<h1>" & title & "</h1>"
 		End If
@@ -1051,6 +1064,7 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 		With doc(relPath)
 			f.Write GenDetailsInfo(.Item("Metadata"))
 			f.Write GenVersionInfo(.Item("Metadata"), lang)
+			f.Write GenDateInfo(.Item("Metadata"), lang)
 			f.Write GenAuthorInfo(.Item("Metadata"), lang)
 			f.Write GenReferencesInfo(.Item("Metadata"), lang, filename)
 
@@ -1102,6 +1116,7 @@ Private Sub GenDoc(doc, docRoot, lang, title)
 				f.WriteLine "<h1>" & EncodeHTMLEntities(localize(lang)("CLASS") & " " & name) & "</h1>"
 				f.Write GenDetailsInfo(.Item("Metadata"))
 				f.Write GenVersionInfo(.Item("Metadata"), lang)
+				f.Write GenDateInfo(.Item("Metadata"), lang)
 				f.Write GenAuthorInfo(.Item("Metadata"), lang)
 				f.Write GenReferencesInfo(.Item("Metadata"), lang, filename)
 
@@ -1223,7 +1238,7 @@ Sub GenMainIndex(doc, root, lang)
 
 	indexFile.WriteLine "<h2>" & localize(lang)("SOURCEINDEX") & "</h2>"
 	For Each relPath In Sort(doc.Keys)
-		indexFile.WriteLine "<p><a href=""" & relPath & "/" & IndexFileName & """>" & relPath & ".vbs</a></p>"
+		indexFile.WriteLine "<p><a href=""" & relPath & "/" & IndexFileName & """>" & relPath & "." & ext & "</a></p>"
 	Next
 
 	WriteFooter indexFile
@@ -1537,6 +1552,8 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 			& "</span> = " & re.Replace(Trim(properties("Value")), "0x$1") & "</code>"
 		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
+			& GenAuthorInfo(properties("Metadata"), lang) _
+			& GenDateInfo(properties("Metadata"), lang) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "procedure"
 		signature = "<code>" & visibility
@@ -1547,6 +1564,8 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 			& GenParameterInfo(properties("Metadata"), lang) _
 			& GenReturnValueInfo(properties("Metadata"), lang) _
 			& GenExceptionInfo(properties("Metadata"), lang) _
+			& GenAuthorInfo(properties("Metadata"), lang) _
+			& GenDateInfo(properties("Metadata"), lang) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "property"
 		If properties("Readable") Then
@@ -1574,11 +1593,15 @@ Private Function GenDetails(ByVal name, ByVal properties, ByVal lang, ByVal elem
 		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
 			& GenExceptionInfo(properties("Metadata"), lang) _
+			& GenAuthorInfo(properties("Metadata"), lang) _
+			& GenDateInfo(properties("Metadata"), lang) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case "variable"
 		signature = "<code>" & visibility & " <span class=""name"">" & name & "</span></code>"
 		GenDetails = GenDetailsHeading(heading, signature, properties("IsDefault")) _
 			& GenDetailsInfo(properties("Metadata")) _
+			& GenAuthorInfo(properties("Metadata"), lang) _
+			& GenDateInfo(properties("Metadata"), lang) _
 			& GenReferencesInfo(properties("Metadata"), lang, filename)
 	Case Else
 		log.LogError "Cannot generate detail information for unknown element type " & elementType & "."
@@ -1648,8 +1671,7 @@ Private Function GenReferencesInfo(tags, lang, filename)
 	GenReferencesInfo = info
 End Function
 
-'! Generate version information from the @version tag. If an @date tag is
-'! present as well, its value is appended to the version.
+'! Generate version information from the @version tag.
 '!
 '! @param  tags   Dictionary with the tag/value pairs from the documentation
 '!                header.
@@ -1663,12 +1685,30 @@ Private Function GenVersionInfo(tags, lang)
 
 	If tags.Exists("@version") Then
 		info = "<h4>" & EncodeHTMLEntities(localize(lang)("VERSION")) & ":</h4>" & vbNewLine _
-			& "<p class=""value"">" & EncodeHTMLEntities(tags("@version"))
-		If tags.Exists("@date") Then info = info & ", " & EncodeHTMLEntities(tags("@date"))
-		info = info & "</p>" & vbNewLine
+			& "<p class=""value"">" & EncodeHTMLEntities(tags("@version")) & "</p>" & vbNewLine
 	End If
 
 	GenVersionInfo = info
+End Function
+
+'! Generate date information from the @date tag.
+'!
+'! @param  tags   Dictionary with the tag/value pairs from the documentation
+'!                header.
+'! @param  lang   Documentation language. All generated text that is not read
+'!                from the source document(s) is created in this language.
+'! @return HTML snippet with the date information.
+Private Function GenDateInfo(tags, lang)
+	Dim info : info = ""
+
+	log.LogDebug "> GenDateInfo(" & TypeName(tags) & ", " & TypeName(lang) & ")"
+
+	If tags.Exists("@date") Then
+		info = "<h4>" & EncodeHTMLEntities(localize(lang)("DATE")) & ":</h4>" & vbNewLine _
+			& "<p class=""value"">" & EncodeHTMLEntities(tags("@date")) & "</p>" & vbNewLine
+	End If
+
+	GenDateInfo = info
 End Function
 
 '! Generate summary information from the @brief tag.
@@ -2783,7 +2823,7 @@ End Function
 '!
 '! @param  exitCode   The exit code.
 Private Sub PrintUsage(exitCode)
-	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/d] [/a] [/q] [/l:LANG] [/p:NAME] [/h:CHM_FILE]" & vbNewLine _
+	log.LogInfo "Usage:" & vbTab & WScript.ScriptName & " [/d] [/a] [/q] [/l:LANG] [/p:NAME] [/e:EXT] [/h:CHM_FILE]" & vbNewLine _
 		& vbTab & vbTab & "/i:SOURCE /o:DOC_DIR" & vbNewLine _
 		& vbTab & WScript.ScriptName & " /?" & vbNewLine & vbNewLine _
 		& vbTab & "/?" & vbTab & "Print this help." & vbNewLine _
@@ -2791,11 +2831,12 @@ Private Sub PrintUsage(exitCode)
 		& vbTab & vbTab & "Without this option, documentation is generated for public" & vbNewLine _
 		& vbTab & vbTab & "elements only." & vbNewLine _
 		& vbTab & "/d" & vbTab & "Enable debug messages. (you really don't want this)" & vbNewLine _
+		& vbTab & "/e" & vbTab & "Process files with the given extension (default: " & DefaultExtension & ")." & vbNewLine _
 		& vbTab & "/h" & vbTab & "Create CHM_FILE in addition to normal HTML output. (requires" & vbNewLine _
 		& vbTab & vbTab & "HTML Help Workshop)" & vbNewLine _
 		& vbTab & "/i" & vbTab & "Read input files from SOURCE. Can be either a file or a" & vbNewLine _
 		& vbTab & vbTab & "directory. (required)" & vbNewLine _
-		& vbTab & "/l" & vbTab & "Generate localized output [" & Join(Sort(localize.Keys), ",") & "]. Default language is " & DefaultLanguage & "." & vbNewLine _
+		& vbTab & "/l" & vbTab & "Generate localized output (available: " & Join(Sort(localize.Keys), ",") & "; default: " & DefaultLanguage & ")." & vbNewLine _
 		& vbTab & "/o" & vbTab & "Create output files in DOC_DIR. (required)" & vbNewLine _
 		& vbTab & "/p" & vbTab & "Use NAME as the project name." & vbNewLine _
 		& vbTab & "/q" & vbTab & "Don't print warnings. Ignored if debug messages are enabled."

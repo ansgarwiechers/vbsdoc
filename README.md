@@ -190,33 +190,33 @@ Example of a properly doc-commented function:
 
 Complete list of supported tags:
 
-- **`@author`** - Name and/or mail address of the author. Optional, multiple tags per documented element are allowed.
+- **`@author`** &ndash; Name and/or mail address of the author. Optional, multiple tags per documented element are allowed.
 
-- **`@brief`** - Summary information. If this tag is omitted, but `@details` is defined, summary information is auto-generated from the first sentence or line of the detail information. Should appear at most once per documented element.
+- **`@brief`** &ndash; Summary information. If this tag is omitted, but `@details` is defined, summary information is auto-generated from the first sentence or line of the detail information. Should appear at most once per documented element.
 
-- **`@date`** - Date tag to document the release or modification date of an element or file. Optional.
+- **`@date`** &ndash; Date tag to document the release or modification date of an element or file. Optional.
 
-- **`@details`** - Detailed description of the procedure, property or identifyer. This is the default tag. The keyword is optional; anything that is not associated with any other tag is assigned or appended to this tag. If a doc comment does not contain any detail description, but does have a summary, the detail description is set to the same text as the summary.
+- **`@details`** &ndash; Detailed description of the procedure, property or identifyer. This is the default tag. The keyword is optional; anything that is not associated with any other tag is assigned or appended to this tag. If a doc comment does not contain any detail description, but does have a summary, the detail description is set to the same text as the summary.
 
-- **`@param`** - Name and description of a function/procedure parameter. Must have the form
+- **`@param`** &ndash; Name and description of a function/procedure parameter. Must have the form
 
       @param  NAME  DESCRIPTION
 
   Where `@param` keyword, parameter name and description can be separated by any amount of whitespace (except for newlines, of course). Valid for functions, procedures, and properties with arguments. Multiple tags per documented item are allowed.
 
-- **`@raise`** - Description of the errors a function or procedure might raise. Optional, multiple tags per documented element are allowed. Valid only for procedures/functions (including properties).
+- **`@raise`** &ndash; Description of the errors a function or procedure might raise. Optional, multiple tags per documented element are allowed. Valid only for procedures/functions (including properties).
 
-- **`@return`** - Description of the return value of a function. Required for functions, must not appear with any other element. Must not appear more than once.
+- **`@return`** &ndash; Description of the return value of a function. Required for functions, must not appear with any other element. Must not appear more than once.
 
-- **`@see`** - Link to some other resource (external or internal). External references should be given as URLs (e.g. http<!>://example.org/) and may be enclosed in angular brackets. Descriptive text may be placed after the reference:
+- **`@see`** &ndash; Link to some other resource (external or internal). External references should be given as URLs (e.g. https://example.org/) and may be enclosed in angular brackets. Descriptive text may be placed after the reference:
 
       @see  REF  DESCRIPTION
 
   If DESCRIPTION is provided, it will appear as the link text instead of REF. Parentheses around DESCRIPTION are removed automatically. Optional. Multiple tags per documented element are allowed.
 
-- **`@todo`** - An unfinished task. `@todo` doc comments are somewhat special, as they are extracted from source files before the processing of the actual code elements. They're grouped into one list per source file that is placed at the beginning of the main documentation file for that source file. Optional.
+- **`@todo`** &ndash; An unfinished task. `@todo` doc comments are somewhat special, as they are extracted from source files before the processing of the actual code elements. They're grouped into one list per source file that is placed at the beginning of the main documentation file for that source file. Optional.
 
-- **`@version`** - Version number. Valid for files and classes, otherwise ignored. Optional.
+- **`@version`** &ndash; Version number. Valid for files and classes, otherwise ignored. Optional.
 
 Sensible documentation for any given element should have at least a summary or a detail description. If both are missing, a warning will be issued, although the documentation generation will continue.
 

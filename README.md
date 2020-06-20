@@ -47,28 +47,27 @@ Output Format
 
 The documentation is generated in XHTML format inside the `DOC_DIR` directory (see above). For each source file a sub-directory with the same name (without the extension "vbs") is created, that contains one or more documentation files. One documentation file for the global code in the script, and one additional file for each class the script contains.
 
-Examples:
----------
+**Examples:**
 
 Processing a single script `Foo.vbs` that contains two classes (`Bar` and `Baz`) will produce this documentation structure:
 
     DOC_DIR\
     `- Foo\
-       +- Bar.html    &larr; documentation of class Bar
-       +- Baz.html    &larr; documentation of class Baz
-       +- index.html  &larr; documentation of Foo's global code
-       `- vbsdoc.css  &larr; stylesheet
+       +- Bar.html    <- documentation of class Bar
+       +- Baz.html    <- documentation of class Baz
+       +- index.html  <- documentation of Foo's global code
+       `- vbsdoc.css  <- stylesheet
 
 Processing a source directory with two scripts `Foo.vbs` and `Bar.vbs`, of which only `Foo.vbs` contains a class (`Baz`) will produce these documentation structure:
 
     DOC_DIR\
     +- Foo\
-    |  +- Baz.html    &larr; documentation of class Baz
-    |  `- index.html  &larr; documentation of Foo's global code
+    |  +- Baz.html    <- documentation of class Baz
+    |  `- index.html  <- documentation of Foo's global code
     +- Bar\
-    |  `- index.html  &larr; documentation of Bar's global code
-    +- index.html      &larr; index of global documentation files
-    `- vbsdoc.css      &larr; stylesheet
+    |  `- index.html  <- documentation of Bar's global code
+    +- index.html     <- index of global documentation files
+    `- vbsdoc.css     <- stylesheet
 
 By default, only code elements with visibility `Public` will be included in the documentation. `Private` elements will be omitted, unless the option `/a` is used.
 
@@ -82,57 +81,54 @@ Doc Comments
 
 VBSdoc comments begin with the string `'!` (single quote followed by an exclamation mark) and must be placed either before the element they refer to (without blank lines between doc comment and code) or at the end of the code line.
 
-Examples:
----------
+**Examples:**
 
 - Valid:
 
-        '! Some procedure.
-        '! @param bar Input value
-        Sub Foo(bar)
+      '! Some procedure.
+      '! @param bar Input value
+      Sub Foo(bar)
 
 - Valid:
 
-        Const BAR = 42  '! Some constant.
-                        '! @see <http://www.example.org/>
+      Const BAR = 42  '! Some constant.
+                      '! @see <http://www.example.org/>
 
 - Not valid (blank line between doc comment and code):
 
-        '! Some procedure.
-        '! @param bar Input value
+      '! Some procedure.
+      '! @param bar Input value
 
-          Function Foo
+        Function Foo
 
 - Not valid (regular comment between doc comment and code):
 
-        '! Some procedure.
-        '! @param bar Input value
-        ' other comment
-        Function Foo
+      '! Some procedure.
+      '! @param bar Input value
+      ' other comment
+      Function Foo
 
 All doc comments for a given code element must be in one consecutive doc comment block either right before the element, or starting at the end of the line with the element.
 
-Examples:
----------
+**Examples:**
 
 - Antecedent doc comment:
 
-        '! Some comment.        &larr; not part of the documentation for Foo()
+      '! Some comment.        <- not part of the documentation for Foo()
 
-        '! Some other comment.  &larr; part of the documentation for Foo()
-        Function Foo
+      '! Some other comment.  <- part of the documentation for Foo()
+      Function Foo
 
 - End-of-Line doc comment:
 
-        Const BAR = 42  '! Some End-of-Line   &larr; part of BAR documentation
-                        '! comment.           &larr; part of BAR documentation
+      Const BAR = 42  '! Some End-of-Line   <- part of BAR documentation
+                      '! comment.           <- part of BAR documentation
 
-                        '! Some other comment &larr; not part of BAR documentation
+                      '! Some other comment <- not part of BAR documentation
 
 Properties are somewhat special, since they can consist of up to three functions/procedures (`Get`/`Let`/`Set`). Although it is possible to add doc comments to each function of a property, I'd recommend to treat all functions of a property as a single item and add the doc comments to just one function.
 
-Example:
---------
+**Example:**
 
     '! Property Foo of some class.
     '!
@@ -204,7 +200,7 @@ Complete list of supported tags:
 
 - **`@param`** - Name and description of a function/procedure parameter. Must have the form
 
-        @param  NAME  DESCRIPTION
+      @param  NAME  DESCRIPTION
 
   Where `@param` keyword, parameter name and description can be separated by any amount of whitespace (except for newlines, of course). Valid for functions, procedures, and properties with arguments. Multiple tags per documented item are allowed.
 
@@ -214,7 +210,7 @@ Complete list of supported tags:
 
 - **`@see`** - Link to some other resource (external or internal). External references should be given as URLs (e.g. http<!>://example.org/) and may be enclosed in angular brackets. Descriptive text may be placed after the reference:
 
-        @see  REF  DESCRIPTION
+      @see  REF  DESCRIPTION
 
   If DESCRIPTION is provided, it will appear as the link text instead of REF. Parentheses around DESCRIPTION are removed automatically. Optional. Multiple tags per documented element are allowed.
 

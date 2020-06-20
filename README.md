@@ -208,7 +208,7 @@ Complete list of supported tags:
 
 - **`@return`** &ndash; Description of the return value of a function. Required for functions, must not appear with any other element. Must not appear more than once.
 
-- **`@see`** &ndash; Link to some other resource (external or internal). External references should be given as URLs (e.g. https://example.org/) and may be enclosed in angular brackets. Descriptive text may be placed after the reference:
+- **`@see`** &ndash; Link to some other resource (external or internal). External references should be given as URLs (e.g. ht<span>tps://exa</span>mple.org/) and may be enclosed in angular brackets. Descriptive text may be placed after the reference:
 
       @see  REF  DESCRIPTION
 

@@ -15,8 +15,7 @@ See COPYING.txt.
 Requirements
 ============
 
-- VBSdoc uses my [CLogger class][3] for displaying messages.
-- For generation of compiled HTML Help files, [HTML Help Workshop][4] must be installed and the HTML Help compiler `hhc.exe` must be in the `%PATH%` of the user running VBSdoc.
+For generation of compiled HTML Help files, [HTML Help Workshop][3] must be installed and the HTML Help compiler `hhc.exe` must be in the `%PATH%` of the user running VBSdoc.
 
 
 Usage
@@ -222,5 +221,4 @@ Sensible documentation for any given element should have at least a summary or a
 
 [1]: https://vbdox.sourceforge.io/
 [2]: https://www.doxygen.nl/
-[3]: https://www.planetcobalt.net/download/CLogger-2.0.zip
-[4]: https://msdn.microsoft.com/en-us/library/ms670169.aspx
+[3]: https://msdn.microsoft.com/en-us/library/ms670169.aspx

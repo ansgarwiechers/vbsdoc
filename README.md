@@ -99,7 +99,7 @@ VBSdoc comments begin with the string `'!` (single quote followed by an exclamat
       '! Some procedure.
       '! @param bar Input value
 
-        Function Foo
+      Function Foo
 
 - Not valid (regular comment between doc comment and code):
 

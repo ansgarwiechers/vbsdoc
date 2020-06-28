@@ -2825,19 +2825,23 @@ Private Sub PrintUsage(exitCode)
 		& vbTab & vbTab & "/i:SOURCE /o:DOC_DIR" & vbNewLine _
 		& vbTab & WScript.ScriptName & " /?" & vbNewLine & vbNewLine _
 		& vbTab & "/?" & vbTab & "Print this help." & vbNewLine _
-		& vbTab & "/a" & vbTab & "Generate documentation for all elements (public and private)." & vbNewLine _
-		& vbTab & vbTab & "Without this option, documentation is generated for public" & vbNewLine _
-		& vbTab & vbTab & "elements only." & vbNewLine _
-		& vbTab & "/d" & vbTab & "Enable debug messages. (you really don't want this)" & vbNewLine _
-		& vbTab & "/e" & vbTab & "Process files with the given extension (default: " & DefaultExtension & ")." & vbNewLine _
-		& vbTab & "/h" & vbTab & "Create CHM_FILE in addition to normal HTML output. (requires" & vbNewLine _
-		& vbTab & vbTab & "HTML Help Workshop)" & vbNewLine _
-		& vbTab & "/i" & vbTab & "Read input files from SOURCE. Can be either a file or a" & vbNewLine _
-		& vbTab & vbTab & "directory. (required)" & vbNewLine _
-		& vbTab & "/l" & vbTab & "Generate localized output (available: " & Join(Sort(localize.Keys), ",") & "; default: " & DefaultLanguage & ")." & vbNewLine _
+		& vbTab & "/a" & vbTab & "Generate documentation for all elements (public" & vbNewLine _
+		& vbTab & vbTab & "and private). Without this option, documentation" & vbNewLine _
+		& vbTab & vbTab & "is generated for public elements only." & vbNewLine _
+		& vbTab & "/d" & vbTab & "Enable debug messages. (you really don't want" & vbNewLine _
+		& vbTab & vbTab & "this)" & vbNewLine _
+		& vbTab & "/e" & vbTab & "Process files with the given extension." & vbNewLine _
+		& vbTab & vbTab & "(default: " & DefaultExtension & ")." & vbNewLine _
+		& vbTab & "/h" & vbTab & "Create CHM_FILE in addition to normal HTML" & vbNewLine _
+		& vbTab & vbTab & "output. (requires HTML Help Workshop)" & vbNewLine _
+		& vbTab & "/i" & vbTab & "Read input files from SOURCE. Can be either a file" & vbNewLine _
+		& vbTab & vbTab & "or a directory. (required)" & vbNewLine _
+		& vbTab & "/l" & vbTab & "Generate localized output (available: " & Join(Sort(localize.Keys), ",") & ";" & vbNewLine _
+		& vbTab & vbTab & "default: " & DefaultLanguage & ")." & vbNewLine _
 		& vbTab & "/o" & vbTab & "Create output files in DOC_DIR. (required)" & vbNewLine _
 		& vbTab & "/p" & vbTab & "Use NAME as the project name." & vbNewLine _
-		& vbTab & "/q" & vbTab & "Don't print warnings. Ignored if debug messages are enabled."
+		& vbTab & "/q" & vbTab & "Don't print warnings. Ignored if debug messages" & vbNewLine _
+		& vbTab & vbTab & "are enabled."
 	WScript.Quit exitCode
 End Sub
 

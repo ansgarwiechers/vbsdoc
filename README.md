@@ -26,20 +26,23 @@ Usage
     VBSdoc.vbs /?
 
       /?      Print this help.
-      /a      Generate documentation for all elements (public and private).
-              Without this option, documentation is generated for public
-              elements only.
-      /d      Enable debug messages. (you really don't want this)
-      /e      Process files with the given extension (default: vbs).
-      /h      Create CHM_FILE in addition to normal HTML output. (requires
-              HTML Help Workshop)
-      /i      Read input files from SOURCE. Can be either a file or a
-              directory. (required)
-      /l      Generate localized output (available: de,en,pt; default: en).
+      /a      Generate documentation for all elements (public
+              and private). Without this option, documentation
+              is generated for public elements only.
+      /d      Enable debug messages. (you really don't want
+              this)
+      /e      Process files with the given extension.
+              (default: vbs).
+      /h      Create CHM_FILE in addition to normal HTML
+              output. (requires HTML Help Workshop)
+      /i      Read input files from SOURCE. Can be either a file
+              or a directory. (required)
+      /l      Generate localized output (available: de,en,pt;
+              default: en).
       /o      Create output files in DOC_DIR. (required)
       /p      Use NAME as the project name.
-      /q      Don't print warnings. Ignored if debug messages are enabled.
-
+      /q      Don't print warnings. Ignored if debug messages
+              are enabled.
 
 Output Format
 =============
